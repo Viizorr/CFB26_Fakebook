@@ -130,10 +130,16 @@ class ParlayLeg(db.Model):
 
 # ---------------------------- Helpers --------------------------------
 
+from sqlalchemy.exc import OperationalError, InterfaceError
+
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
-
+    uid = int(user_id)
+    try:
+        return db.session.get(User, uid)
+    except (OperationalError, InterfaceError):
+        db.session.remove()          # reset session/connection
+        return db.session.get(User, uid)
 
 def admin_required(fn):
     from functools import wraps
