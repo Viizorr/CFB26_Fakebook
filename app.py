@@ -293,7 +293,7 @@ def admin_games():
     games = Game.query.order_by(Game.start_time.desc()).all()
     return render_template('admin_games.html', games=games)
     
-@app.route('/admin/games/<int:game_id>/grade', methods=['POST'])
+@app.route('/admin/games/<int:game_id>/grade', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_grade_game(game_id):
