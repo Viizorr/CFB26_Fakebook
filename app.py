@@ -356,58 +356,50 @@ def leaderboard():
 
 # ------------------------------ Admin --------------------------------
 
-@app.route("/admin/users", methods=["GET", "POST"])
+@app.route('/admin/games/<int:game_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
-def admin_users():
-    if request.method == "POST":
-        action = request.form.get("action")
+def admin_edit_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    if request.method == 'POST':
+        def i(name):
+            v = request.form.get(name)
+            return int(v) if v not in (None, '') else None
+        def d(name):
+            v = request.form.get(name)
+            return Decimal(v) if v not in (None, '') else None
 
-        if action == "create":
-            username = request.form.get("username", "").strip()
-            password = request.form.get("password", "")
-            start_balance = request.form.get("start_balance", "1000.00")
-            is_admin = request.form.get("is_admin") == "1"
+        game.home_team = request.form.get('home_team', game.home_team).strip()
+        game.away_team = request.form.get('away_team', game.away_team).strip()
+        if request.form.get('start_time'):
+            game.start_time = datetime.fromisoformat(request.form['start_time'])
+        game.status = request.form.get('status', game.status)
 
-            if not username or not password:
-                flash("Username and password required", "danger")
-            elif User.query.filter_by(username=username).first():
-                flash("Username already exists", "warning")
-            else:
-                u = User(
-                    username=username,
-                    is_admin=is_admin,
-                    balance=Decimal(start_balance).quantize(Decimal("0.01")),
-                )
-                u.set_password(password)
-                db.session.add(u)
-                db.session.commit()
-                flash("User created", "success")
+        game.ml_home = i('ml_home')
+        game.ml_away = i('ml_away')
+        game.spread_line = d('spread_line')
+        game.spread_home_odds = i('spread_home_odds')
+        game.spread_away_odds = i('spread_away_odds')
+        game.total_points = d('total_points')
+        game.over_odds = i('over_odds')
+        game.under_odds = i('under_odds')
 
-        elif action == "adjust":
-            user_id = int(request.form["user_id"])
-            adj = Decimal(request.form["adjust_amount"])
-            user = User.query.get_or_404(user_id)
-            user.balance = (Decimal(user.balance) + adj).quantize(Decimal("0.01"))
-            db.session.commit()
-            flash("Balance adjusted", "success")
+        db.session.commit()
+        flash('Game updated.', 'success')
+        return redirect(url_for('admin_games'))
 
-        return redirect(url_for("admin_users"))
-
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template("admin_users.html", users=users)
+    return render_template('admin_edit_game.html', game=game)
 
 
-@app.route('/admin/games')
+@app.route('/admin/games/<int:game_id>/close', methods=['POST'])
 @login_required
 @admin_required
-def admin_games():
-    try:
-        games = Game.query.order_by(Game.start_time.desc()).all()
-    except (OperationalError, InterfaceError):
-        db.session.remove()
-        games = Game.query.order_by(Game.start_time.desc()).all()
-    return render_template('admin_games.html', games=games)
+def admin_close_game(game_id):
+    game = Game.query.get_or_404(game_id)
+    game.status = 'closed'
+    db.session.commit()
+    flash('Betting closed for game.', 'info')
+    return redirect(url_for('admin_games'))
 
 
 @app.route("/admin/games/new", methods=["GET", "POST"])
