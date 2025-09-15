@@ -7,44 +7,164 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
-  <div class="container-fluid">
-    <!-- Brand (clickable logo to home) -->
-    <a class="navbar-brand d-flex align-items-center"
-       href="{{ url_for('index') }}" aria-label="Home">
-      <img src="{{ url_for('static', filename='cfbFB26logo.png') }}"
-           alt="College Fakebook 26"
-           class="brand-logo me-2">
-      <span class="visually-hidden">Home</span>
-    </a>
-    <!-- Right-side actions -->
-    <div class="ms-auto">
-      <a class="btn btn-outline-light me-2" href="{{ url_for('leaderboard') }}">Leaderboard</a>
-      <a class="btn btn-outline-light me-2" href="{{ url_for('account') }}">Account</a>
-      {% if current_user.is_authenticated and current_user.is_admin %}
-      <div class="btn-group me-2">
-        <a class="btn btn-warning" href="{{ url_for('admin_games') }}">Admin: Games</a>
-        <a class="btn btn-warning" href="{{ url_for('admin_users') }}">Admin: Users</a>
+
+<body data-balance="{{ '%.2f'|format(current_user.balance) if current_user.is_authenticated else '0.00' }}">
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}" aria-label="Home">
+        <img src="{{ url_for('static', filename='cfbFB26logo.png') }}"
+             alt="College Fakebook 26" class="brand-logo me-2">
+        <span class="visually-hidden">Home</span>
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="mainNav">
+        <div class="ms-auto d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-light" href="{{ url_for('leaderboard') }}">Leaderboard</a>
+          <a class="btn btn-outline-light" href="{{ url_for('account') }}">Account</a>
+
+          {% if current_user.is_authenticated and current_user.is_admin %}
+          <div class="btn-group">
+            <a class="btn btn-warning" href="{{ url_for('admin_games') }}">Admin: Games</a>
+            <a class="btn btn-warning" href="{{ url_for('admin_users') }}">Admin: Users</a>
+          </div>
+          {% endif %}
+
+          {% if current_user.is_authenticated %}
+          <a class="btn btn-outline-danger" href="{{ url_for('logout') }}">Logout</a>
+          {% endif %}
+        </div>
       </div>
+    </div>
+  </nav>
+
+  <!-- Page content -->
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mt-2">
+          {% for cat, msg in messages %}
+          <div class="alert alert-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        </div>
       {% endif %}
-      {% if current_user.is_authenticated %}
-      <a class="btn btn-outline-danger" href="{{ url_for('logout') }}">Logout</a>
-      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- Quick Pick offcanvas -->
+  <div class="offcanvas offcanvas-bottom" tabindex="-1" id="betSlip" aria-labelledby="betSlipLabel"
+       style="height:55vh;min-height:360px">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="betSlipLabel">Quick Pick</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="mb-2 small text-muted">
+        Balance: ${{ '%.2f'|format(current_user.balance) if current_user.is_authenticated else '0.00' }}
+      </div>
+
+      <form method="post" action="{{ url_for('place_bet') }}">
+        <input type="hidden" name="game_id">
+        <input type="hidden" name="bet_type">
+        <input type="hidden" name="selection">
+
+        <div class="fw-semibold" id="bs-game"></div>
+        <div class="d-flex justify-content-between text-muted mb-2">
+          <div id="bs-market"></div>
+          <div class="fw-semibold" id="bs-odds"></div>
+        </div>
+
+        <div class="row g-2 align-items-center mb-2">
+          <div class="col-6 col-sm-4">
+            <label class="form-label mb-1">Risk</label>
+            <input id="stake" name="stake" type="number" step="0.01" min="0.01"
+                   class="form-control" placeholder="0.00" required>
+          </div>
+          <div class="col-6 col-sm-4">
+            <label class="form-label mb-1">Payout</label>
+            <div class="form-control-plaintext fw-semibold" id="payout">$0.00</div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-3">
+          <button type="button" class="btn btn-outline-secondary" data-add="1">+1</button>
+          <button type="button" class="btn btn-outline-secondary" data-add="5">+5</button>
+          <button type="button" class="btn btn-outline-secondary" data-add="10">+10</button>
+          <button type="button" id="maxBtn" class="btn btn-outline-secondary">MAX</button>
+        </div>
+
+        <button class="btn btn-success w-100">Submit</button>
+      </form>
     </div>
   </div>
-</nav>
-<div class="container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mt-2">
-        {% for cat, msg in messages %}
-        <div class="alert alert-{{ cat }}">{{ msg }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-  {% block content %}{% endblock %}
-</div>
+
+  <!-- Scripts at end of body -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    (() => {
+      const off = new bootstrap.Offcanvas('#betSlip');
+      let currentOdds = 0;
+
+      function payoutFor(stake, odds){
+        const s = parseFloat(stake || 0), o = parseInt(odds, 10);
+        if(!s || !o) return '0.00';
+        const profit = o > 0 ? s * o / 100 : s * 100 / Math.abs(o);
+        return (s + profit).toFixed(2);
+      }
+
+      document.addEventListener('click', (e) => {
+        const pick = e.target.closest('.js-odds-pick');
+        if(!pick) return;
+
+        const { gameId, betType, selection, label, price, line } = pick.dataset;
+
+        document.querySelector('#betSlip input[name=game_id]').value   = gameId;
+        document.querySelector('#betSlip input[name=bet_type]').value  = betType;
+        document.querySelector('#betSlip input[name=selection]').value = selection;
+
+        document.getElementById('bs-game').textContent   = label;
+        document.getElementById('bs-market').textContent = betType + (line ? ` ${line}` : '');
+        document.getElementById('bs-odds').textContent   = price;
+
+        currentOdds = price;
+        const stake = document.getElementById('stake');
+        stake.value = '';
+        document.getElementById('payout').textContent = '$0.00';
+
+        off.show();
+      });
+
+      document.addEventListener('input', (e) => {
+        if(e.target.id === 'stake'){
+          document.getElementById('payout').textContent =
+            '$' + payoutFor(e.target.value, currentOdds);
+        }
+      });
+
+      document.querySelectorAll('[data-add]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const f = document.getElementById('stake');
+          let v = parseFloat(f.value || 0);
+          v += parseFloat(btn.dataset.add);
+          f.value = v.toFixed(2);
+          f.dispatchEvent(new Event('input'));
+        });
+      });
+
+      document.getElementById('maxBtn')?.addEventListener('click', () => {
+        const bal = parseFloat(document.body.dataset.balance || 0);
+        const f = document.getElementById('stake');
+        f.value = (isNaN(bal) ? 0 : bal).toFixed(2);
+        f.dispatchEvent(new Event('input'));
+      });
+    })();
+  </script>
 </body>
 </html>
