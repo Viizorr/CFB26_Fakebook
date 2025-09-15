@@ -12,13 +12,54 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 db_path = os.getenv("DATABASE_URL") or f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
 
+# --- Robust DB URL & engine options for Render Postgres ---
+if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
+    sep = "&" if "?" in db_path else "?"
+    db_path = f"{db_path}{sep}sslmode=require"
+
+# Make the engine resilient to stale/broken TLS connections
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 1800,  # seconds; ~30 minutes
+    # (optional) a small pool keeps free-tier happy:
+    "pool_size": 5,
+    "max_overflow": 5,
+    # belt-and-suspenders ssl hint; harmless if already in URL
+    "connect_args": {"sslmode": "require"} if db_path.startswith("postgresql://") else {}
+}
+
+# Ensure TLS and add engine options BEFORE initializing SQLAlchemy
+if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
+    # add ?sslmode=require or &sslmode=require depending on whether a query string exists
+    db_path += ("&" if "?" in db_path else "?") + "sslmode=require"
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-me')
+
+# Use the updated db_path
+app.config['SQLALCHEMY_DATABASE_URI'] = db_path
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Make the connection pool resilient to dead/broken TLS sockets
+# (must be set before db = SQLAlchemy(app))
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,     # test connection before using it
+    "pool_recycle": 1800,      # reconnect every ~30 minutes
+    "pool_size": 5,            # small pool is fine on free tiers
+    "max_overflow": 5,
+    # belt-and-suspenders: harmless if SSL is already in the URL
+    **({"connect_args": {"sslmode": "require"}}
+       if db_path.startswith("postgresql://") else {})
+}
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+db = SQLAlchemy(app)  # <-- keep this AFTER the config above
+
 # Render/Heroku sometimes use the old postgres:// scheme; SQLAlchemy wants postgresql://
 if db_path.startswith("postgres://"):
     db_path = db_path.replace("postgres://", "postgresql://", 1)
-
-# Force SSL for production (Render/Postgres)
-if "localhost" not in db_path and "sslmode" not in db_path:
-    db_path += "?sslmode=require"
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-me')
