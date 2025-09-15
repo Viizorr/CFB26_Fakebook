@@ -13,10 +13,7 @@ from sqlalchemy.exc import OperationalError, InterfaceError
 
 # ------------------------- DB URL & App Setup -------------------------
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 db_path = os.getenv("DATABASE_URL") or f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
-
-# Normalize Render/Heroku old scheme and enforce TLS for Postgres
 if db_path.startswith("postgres://"):
     db_path = db_path.replace("postgres://", "postgresql://", 1)
 if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
