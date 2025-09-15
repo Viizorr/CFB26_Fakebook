@@ -24,7 +24,7 @@ if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.getenv('SECRET_KEY', 'dev-secret-change-me'),
+    SECRET_KEY=os.getenv('SECRET_KEY', '58FEEC8BC8DD1F324832D4064E5F3591'),
     SQLALCHEMY_DATABASE_URI=db_path,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
     SQLALCHEMY_ENGINE_OPTIONS={
