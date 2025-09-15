@@ -275,6 +275,13 @@ def leaderboard():
     return render_template('leaderboard.html', users=users)
 
 # ---------------- ADMIN ----------------
+@app.route('/admin/games')
+@login_required
+@admin_required
+def admin_games():
+    games = Game.query.order_by(Game.start_time.desc()).all()
+    return render_template('admin_games.html', games=games)
+    
 @app.route('/admin/games/<int:game_id>/grade', methods=['POST'])
 @login_required
 @admin_required
