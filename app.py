@@ -30,15 +30,13 @@ app.config.update(
     SQLALCHEMY_ENGINE_OPTIONS={
         "pool_pre_ping": True,
         "pool_recycle": 1800,
-        "pool_size": 5,
-        "max_overflow": 5,
         "connect_args": {"sslmode": "require"} if db_path.startswith("postgresql://") else {},
     },
 )
+db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-db = SQLAlchemy(app)
 
 @app.before_request
 def keep_db_alive():
