@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>Admin: Games</h3>
+  <a class="btn btn-success" href="{{ url_for('admin_new_game') }}">+ New Game</a>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Matchup</th>
+      <th>Start</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for g in games %}
+    <tr>
+      <td>{{ g.id }}</td>
+      <td>{{ g.away_team }} @ {{ g.home_team }}</td>
+      <td>{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ g.status }}</td>
+      <td>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('admin_edit_game', game_id=g.id) }}">Edit</a>
+
+        {% if g.status == 'open' %}
+        <form action="{{ url_for('admin_close_game', game_id=g.id) }}" method="post" style="display:inline">
+          <button class="btn btn-warning btn-sm">Close Betting</button>
+        </form>
+        {% endif %}
+
+        <form action="{{ url_for('admin_grade_game', game_id=g.id) }}" method="post" class="d-inline-flex">
+          <input class="form-control form-control-sm me-1" style="width:90px" name="home_score" placeholder="Home" required>
+          <input class="form-control form-control-sm me-1" style="width:90px" name="away_score" placeholder="Away" required>
+          <button class="btn btn-success btn-sm">Grade</button>
+        </form>
+
+        {% if g.status in ['closed','graded'] %}
+        <form action="{{ url_for('admin_delete_game', game_id=g.id) }}"
+              method="post" style="display:inline"
+              onsubmit="return confirm('Delete this game? Only allowed if there are no bets.');">
+          <button type="submit" class="btn btn-outline-danger btn-sm ms-1">Delete</button>
+        </form>
+
+	<form action="{{ url_for('admin_delete_game', game_id=g.id) }}"
+      		method="post" style="display:inline"
+     		onsubmit="return confirm('Force delete this game? This will refund/reverse all related bets and delete them. This cannot be undone.');">
+  	<input type="hidden" name="force" value="1">
+ 	<button type="submit" class="btn btn-danger btn-sm ms-1">Force Delete</button>
+	</form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Account</h3>
+<p><strong>Username:</strong> {{ current_user.username }} | <strong>Balance:</strong> ${{ '%.2f'|format(current_user.balance) }}</p>
+<hr>
+<h5>Your Bets</h5>
+<table class="table table-striped">
+  <thead><tr><th>When</th><th>Game</th><th>Type</th><th>Pick</th><th>Line</th><th>Odds</th><th>Stake</th><th>Status</th><th>Payout</th></tr></thead>
+  <tbody>
+  {% for b in bets %}
+    <tr>
+      <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ b.game.away_team }} @ {{ b.game.home_team }}</td>
+      <td>{{ b.bet_type }}</td>
+      <td>{{ b.selection }}</td>
+      <td>{% if b.line is not none %}{{ b.line }}{% else %}-{% endif %}</td>
+      <td>{{ b.odds }}</td>
+      <td>${{ '%.2f'|format(b.stake) }}</td>
+      <td>{{ b.status }}</td>
+      <td>${{ '%.2f'|format(b.payout) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

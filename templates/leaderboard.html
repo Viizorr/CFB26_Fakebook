@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>Leaderboard</h3>
+<table class="table table-bordered table-hover">
+  <thead><tr><th>User</th><th>Balance</th></tr></thead>
+  <tbody>
+    {% for u in users %}
+      <tr><td>{{ u.username }}{% if u.is_admin %} <span class="badge bg-warning text-dark">admin</span>{% endif %}</td><td>${{ '%.2f'|format(u.balance) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

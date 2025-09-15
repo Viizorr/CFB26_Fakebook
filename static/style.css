@@ -1,0 +1,40 @@
+body { padding-bottom: 40px; }
+.table td, .table th { vertical-align: middle; }
+
+.brand-logo { height: 38px; width: auto; display: block; }
+@media (max-width: 576px){ .brand-logo { height: 30px; } }
+
+/* Card + grid layout like your screenshot */
+.game-card { border: 1px solid #e9ecef; border-radius: 12px; }
+
+.odds-grid {
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr); /* Teams | ML | Spread | Total */
+  gap: 12px;
+  align-items: stretch;
+}
+
+.og-team, .og-market { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; }
+
+.team-name { font-weight: 600; line-height: 40px; }
+
+.odds-pill {
+  background: #f8f9fa;
+  border: 1px solid #dfe3e8;
+  border-radius: 10px;
+  padding: 6px 10px;
+  text-align: center;
+}
+
+.odds-line { font-weight: 700; }
+.odds-price { font-size: .9rem; color: #0d6efd; margin-top: -2px; }
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .odds-grid { grid-template-columns: 1.5fr repeat(3, 1fr); gap: 8px; }
+  .team-name { font-size: 0.95rem; }
+}
+@media (max-width: 576px) {
+  .odds-grid { grid-template-columns: 1fr; }
+  .og-market { grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; }
+}

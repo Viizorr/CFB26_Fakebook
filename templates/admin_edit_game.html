@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<h3>{{ 'New' if not game else 'Edit' }} Game</h3>
+<form method="post">
+  <div class="row g-3">
+    <div class="col-md-4"><label class="form-label">Home Team</label><input class="form-control" name="home_team" value="{{ game.home_team if game else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Away Team</label><input class="form-control" name="away_team" value="{{ game.away_team if game else '' }}" required></div>
+    <div class="col-md-4"><label class="form-label">Start (YYYY-MM-DD HH:MM)</label><input class="form-control" name="start_time" value="{{ game.start_time.strftime('%Y-%m-%d %H:%M') if game else '' }}" required></div>
+
+    {% if game %}
+    <div class="col-md-3">
+      <label class="form-label">Status</label>
+      <select class="form-select" name="status">
+        <option value="open" {% if game.status=='open' %}selected{% endif %}>open</option>
+        <option value="closed" {% if game.status=='closed' %}selected{% endif %}>closed</option>
+        <option value="graded" {% if game.status=='graded' %}selected{% endif %}>graded</option>
+      </select>
+    </div>
+    {% endif %}
+
+    <div class="col-md-2"><label class="form-label">ML Home</label><input class="form-control" name="ml_home" value="{{ game.ml_home if game else '' }}"></div>
+    <div class="col-md-2"><label class="form-label">ML Away</label><input class="form-control" name="ml_away" value="{{ game.ml_away if game else '' }}"></div>
+
+    <div class="col-md-2"><label class="form-label">Spread (home)</label><input class="form-control" name="spread_line" value="{{ game.spread_line if game else '' }}" placeholder="-6.5"></div>
+    <div class="col-md-2"><label class="form-label">Spread Home Odds</label><input class="form-control" name="spread_home_odds" value="{{ game.spread_home_odds if game else '' }}" placeholder="-110"></div>
+    <div class="col-md-2"><label class="form-label">Spread Away Odds</label><input class="form-control" name="spread_away_odds" value="{{ game.spread_away_odds if game else '' }}" placeholder="-110"></div>
+
+    <div class="col-md-2"><label class="form-label">Total (O/U)</label><input class="form-control" name="total_points" value="{{ game.total_points if game else '' }}" placeholder="55.5"></div>
+    <div class="col-md-2"><label class="form-label">Over Odds</label><input class="form-control" name="over_odds" value="{{ game.over_odds if game else '' }}" placeholder="-110"></div>
+    <div class="col-md-2"><label class="form-label">Under Odds</label><input class="form-control" name="under_odds" value="{{ game.under_odds if game else '' }}" placeholder="-110"></div>
+  </div>
+  <div class="mt-3">
+    <button class="btn btn-primary">Save</button>
+    <a class="btn btn-secondary" href="{{ url_for('admin_games') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}
