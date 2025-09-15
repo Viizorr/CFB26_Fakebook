@@ -8,6 +8,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import CheckConstraint
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError, InterfaceError
 
 # ------------------------- DB URL & App Setup -------------------------
 
@@ -39,6 +41,14 @@ login_manager = LoginManager(app)
 login_manager.login_view = "login"
 
 db = SQLAlchemy(app)
+
+@app.before_request
+def keep_db_alive():
+    """Ping DB each request; if the pooled connection is stale, reset the session."""
+    try:
+        db.session.execute(text('SELECT 1'))
+    except (OperationalError, InterfaceError):
+        db.session.remove()  # drop the bad connection; next use will reconnect
 
 # ----------------------------- Models --------------------------------
 
@@ -138,7 +148,7 @@ def load_user(user_id):
     try:
         return db.session.get(User, uid)
     except (OperationalError, InterfaceError):
-        db.session.remove()          # reset session/connection
+        db.session.remove()
         return db.session.get(User, uid)
 
 def admin_required(fn):
@@ -390,12 +400,16 @@ def admin_users():
     return render_template("admin_users.html", users=users)
 
 
-@app.route("/admin/games")
+@app.route('/admin/games')
 @login_required
 @admin_required
 def admin_games():
-    games = Game.query.order_by(Game.start_time.desc()).all()
-    return render_template("admin_games.html", games=games)
+    try:
+        games = Game.query.order_by(Game.start_time.desc()).all()
+    except (OperationalError, InterfaceError):
+        db.session.remove()
+        games = Game.query.order_by(Game.start_time.desc()).all()
+    return render_template('admin_games.html', games=games)
 
 
 @app.route("/admin/games/new", methods=["GET", "POST"])
