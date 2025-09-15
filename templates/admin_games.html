@@ -38,13 +38,13 @@
         </form>
 
         {% if g.status in ['closed','graded'] %}
-        <form action="{{ url_for('admin_delete_game', game_id=g.id) }}"
+        <form action="{{ url_for('admin_close_game', game_id=g.id) }}"
               method="post" style="display:inline"
               onsubmit="return confirm('Delete this game? Only allowed if there are no bets.');">
           <button type="submit" class="btn btn-outline-danger btn-sm ms-1">Delete</button>
         </form>
 
-	<form action="{{ url_for('admin_delete_game', game_id=g.id) }}"
+	<form action="{{ url_for('admin_close_game', game_id=g.id) }}"
       		method="post" style="display:inline"
      		onsubmit="return confirm('Force delete this game? This will refund/reverse all related bets and delete them. This cannot be undone.');">
   	<input type="hidden" name="force" value="1">
