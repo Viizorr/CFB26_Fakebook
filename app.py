@@ -16,6 +16,10 @@ db_path = os.getenv("DATABASE_URL") or f"sqlite:///{os.path.join(BASE_DIR, 'app.
 if db_path.startswith("postgres://"):
     db_path = db_path.replace("postgres://", "postgresql://", 1)
 
+# Force SSL for production (Render/Postgres)
+if "localhost" not in db_path and "sslmode" not in db_path:
+    db_path += "?sslmode=require"
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-me')
 app.config['SQLALCHEMY_DATABASE_URI'] = db_path
