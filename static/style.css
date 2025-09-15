@@ -2,7 +2,7 @@ body { padding-bottom: 40px; }
 .table td, .table th { vertical-align: middle; }
 
 .brand-logo { height: 38px; width: auto; display: block; }
-@media (max-width: 576px){ .brand-logo { height: 30px; } }
+@media (max-width: 576px){ .brand-logo { height: 50px; } }
 
 /* Card + grid layout like your screenshot */
 .game-card { border: 1px solid #e9ecef; border-radius: 12px; }
@@ -38,3 +38,22 @@ body { padding-bottom: 40px; }
   .odds-grid { grid-template-columns: 1fr; }
   .og-market { grid-template-columns: repeat(3, 1fr); grid-template-rows: auto; }
 }
+
+/* column headers above the odds grid */
+.odds-heads{
+  display: grid;
+  grid-template-columns: 2fr repeat(3, 1fr); /* Teams | ML | Spread | Total */
+  gap: 12px;                 /* match .odds-grid gap */
+  margin: -2px 0 6px;        /* slight tighten above the boxes */
+}
+.odds-head{
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #6c757d;
+  font-size: .8rem;
+  letter-spacing: .02em;
+  line-height: 1.1;
+}
+/* first column is the team names — keep it left/aligned and blank (or say Teams) */
+.odds-head:first-child{ text-align: left; }
