@@ -55,8 +55,8 @@
 
           {% if current_user.is_authenticated and current_user.is_admin %}
           <div class="btn-group">
-            <a class="btn btn-warning" href="{{ url_for('admin_games') }}">Admin: Games</a>
-            <a class="btn btn-warning" href="{{ url_for('admin_users') }}">Admin: Users</a>
+           <a class="btn btn-warning" href="/admin/games">Admin: Games</a>
+            <a class="btn btn-warning" href="/admin/users">Admin: Users</a>
           </div>
           {% endif %}
 
