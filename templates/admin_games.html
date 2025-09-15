@@ -20,7 +20,7 @@
     <tr>
       <td>{{ g.id }}</td>
       <td>{{ g.away_team }} @ {{ g.home_team }}</td>
-      <td>{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>{{ g.start_time.strftime('%Y-%m-%d %H:%M') if g.start_time else '—' }}</td>
       <td>{{ g.status }}</td>
       <td>
         <a class="btn btn-primary btn-sm" href="{{ url_for('admin_edit_game', game_id=g.id) }}">Edit</a>
