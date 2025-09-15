@@ -24,11 +24,16 @@ if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=...,
+    SECRET_KEY=os.getenv('SECRET_KEY', 'dev-secret-change-me'),
     SQLALCHEMY_DATABASE_URI=db_path,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SQLALCHEMY_ENGINE_OPTIONS={ "pool_pre_ping": True, "pool_recycle": 1800, "pool_size": 5, "max_overflow": 5,
-                                "connect_args": {"sslmode": "require"} if db_path.startswith("postgresql://") else {} }
+    SQLALCHEMY_ENGINE_OPTIONS={
+        "pool_pre_ping": True,
+        "pool_recycle": 1800,
+        "pool_size": 5,
+        "max_overflow": 5,
+        "connect_args": {"sslmode": "require"} if db_path.startswith("postgresql://") else {},
+    },
 )
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
