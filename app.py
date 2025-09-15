@@ -407,17 +407,39 @@ def admin_grade_game(game_id):
     flash('Game graded and balances updated.', 'success')
     return redirect(url_for('admin_games'))
 
-@app.route('/admin/users', methods=['GET','POST'])
+@app.route('/admin/users', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_users():
     if request.method == 'POST':
-        user_id = int(request.form['user_id'])
-        adj = Decimal(request.form['adjust_amount'])
-        user = User.query.get_or_404(user_id)
-        user.balance = (Decimal(user.balance) + adj).quantize(Decimal('0.01'))
-        db.session.commit()
-        flash('Balance adjusted', 'success')
+        action = request.form.get('action')
+        if action == 'create':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            start_balance = request.form.get('start_balance', '1000.00')
+            is_admin = request.form.get('is_admin') == '1'
+
+            if not username or not password:
+                flash('Username and password required', 'danger')
+            elif User.query.filter_by(username=username).first():
+                flash('Username already exists', 'warning')
+            else:
+                u = User(username=username,
+                         is_admin=is_admin,
+                         balance=Decimal(start_balance).quantize(Decimal('0.01')))
+                u.set_password(password)
+                db.session.add(u)
+                db.session.commit()
+                flash('User created', 'success')
+
+        elif action == 'adjust':
+            user_id = int(request.form['user_id'])
+            adj = Decimal(request.form['adjust_amount'])
+            user = User.query.get_or_404(user_id)
+            user.balance = (Decimal(user.balance) + adj).quantize(Decimal('0.01'))
+            db.session.commit()
+            flash('Balance adjusted', 'success')
+
         return redirect(url_for('admin_users'))
 
     users = User.query.order_by(User.created_at.desc()).all()
