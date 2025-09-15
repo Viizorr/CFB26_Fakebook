@@ -351,6 +351,14 @@ def leaderboard():
 
 # ------------------------------ Admin --------------------------------
 
+@app.route('/admin/games')
+@login_required
+@admin_required
+def admin_games():
+    # Show newest first; adjust if you prefer ascending
+    games = Game.query.order_by(Game.start_time.desc()).all()
+    return render_template('admin_games.html', games=games)
+
 @app.route('/admin/games/<int:game_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
