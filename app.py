@@ -435,43 +435,6 @@ def admin_new_game():
 
     return render_template("admin_edit_game.html", game=None)
 
-
-@app.route("/admin/games/<int:game_id>/edit", methods=["GET", "POST"])
-@login_required
-@admin_required
-def admin_edit_game(game_id):
-    game = Game.query.get_or_404(game_id)
-
-    if request.method == "POST":
-        def i(name):
-            v = request.form.get(name)
-            return int(v) if v not in (None, "",) else None
-
-        def d(name):
-            v = request.form.get(name)
-            return Decimal(v) if v not in (None, "",) else None
-
-        game.home_team = request.form["home_team"].strip()
-        game.away_team = request.form["away_team"].strip()
-        game.start_time = datetime.fromisoformat(request.form["start_time"])
-        game.status = request.form.get("status", game.status)
-
-        game.ml_home = i("ml_home")
-        game.ml_away = i("ml_away")
-        game.spread_line = d("spread_line")
-        game.spread_home_odds = i("spread_home_odds")
-        game.spread_away_odds = i("spread_away_odds")
-        game.total_points = d("total_points")
-        game.over_odds = i("over_odds")
-        game.under_odds = i("under_odds")
-
-        db.session.commit()
-        flash("Game updated", "success")
-        return redirect(url_for("admin_games"))
-
-    return render_template("admin_edit_game.html", game=game)
-
-
 @app.route("/admin/games/<int:game_id>/grade", methods=["POST"])
 @login_required
 @admin_required
