@@ -12,12 +12,12 @@
           <a class="btn btn-sm btn-primary" href="{{ url_for('game_detail', game_id=g.id) }}">Details</a>
         </div>
 
-        <!-- column labels -->
-        <div class="row text-uppercase text-muted small fw-bold mb-1 px-1 d-none d-md-flex">
-          <div class="col-6"></div>
-          <div class="col text-center">ML</div>
-          <div class="col text-center">Spread</div>
-          <div class="col text-center">Total</div>
+        <!-- column labels aligned with odds grid -->
+        <div class="odds-grid text-uppercase text-muted small fw-bold mb-1">
+          <div></div> <!-- empty slot for team names -->
+          <div class="text-center">ML</div>
+          <div class="text-center">Spread</div>
+          <div class="text-center">Total</div>
         </div>
 
         <!-- odds grid (top row = AWAY, bottom row = HOME) -->
@@ -34,7 +34,7 @@
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
                  data-selection="AWAY"
-                 data-label="{{ g.away_team }} ML"
+                 data-label="{{ g.away_team }}"
                  data-price="{{ g.ml_away }}">
               {% if g.ml_away is not none %}
                 <div class="odds-line">{{ '+' if g.ml_away > 0 else '' }}{{ g.ml_away }}</div>
@@ -44,7 +44,7 @@
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
                  data-selection="HOME"
-                 data-label="{{ g.home_team }} ML"
+                 data-label="{{ g.home_team }}"
                  data-price="{{ g.ml_home }}">
               {% if g.ml_home is not none %}
                 <div class="odds-line">{{ '+' if g.ml_home > 0 else '' }}{{ g.ml_home }}</div>
@@ -58,7 +58,7 @@
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
                  data-selection="AWAY"
-                 data-label="{{ g.away_team }} Spread"
+                 data-label="{{ g.away_team }}"
                  data-line="{{ away_spread }}"
                  data-price="{{ g.spread_away_odds }}">
               {% if g.spread_line is not none and g.spread_away_odds is not none %}
@@ -70,7 +70,7 @@
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
                  data-selection="HOME"
-                 data-label="{{ g.home_team }} Spread"
+                 data-label="{{ g.home_team }}"
                  data-line="{{ g.spread_line }}"
                  data-price="{{ g.spread_home_odds }}">
               {% if g.spread_line is not none and g.spread_home_odds is not none %}
@@ -87,7 +87,6 @@
                  data-bet-type="TOTAL"
                  data-selection="OVER"
                  data-label="Over {{ g.total_points }}"
-                 data-line="{{ g.total_points }}"
                  data-price="{{ g.over_odds }}">
               {% if g.total_points is not none and g.over_odds is not none %}
                 <div class="odds-line">o{{ g.total_points }}</div>
@@ -99,7 +98,6 @@
                  data-bet-type="TOTAL"
                  data-selection="UNDER"
                  data-label="Under {{ g.total_points }}"
-                 data-line="{{ g.total_points }}"
                  data-price="{{ g.under_odds }}">
               {% if g.total_points is not none and g.under_odds is not none %}
                 <div class="odds-line">u{{ g.total_points }}</div>
