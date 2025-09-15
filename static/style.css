@@ -86,3 +86,17 @@ body { padding-bottom: 40px; }
   border-color: #2a3146;
   color: #7784a1;
 }
+
+/*Mobile Settings*/
+@media (max-width: 576px) {
+  body {
+    font-size: 0.9rem;
+  }
+  .game-card {
+    padding: 8px;
+  }
+  .odds-pill {
+    width: 100%; /* stack on phones */
+    margin-bottom: 6px;
+  }
+}
