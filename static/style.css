@@ -57,3 +57,32 @@ body { padding-bottom: 40px; }
 }
 /* first column is the team names — keep it left/aligned and blank (or say Teams) */
 .odds-head:first-child{ text-align: left; }
+
+/* ---- Dark mode styling for odds tiles ---- */
+[data-bs-theme="dark"] .odds-pill{
+  background-color: #1f3356;   /* navy blue tile */
+  border-color:    #2c4a7a;    /* blue border */
+  color: #e8f1ff;              /* light text */
+}
+
+[data-bs-theme="dark"] .odds-pill .odds-line{
+  color: #e8f1ff;              /* main line text */
+  font-weight: 700;
+}
+
+[data-bs-theme="dark"] .odds-pill .odds-price{
+  color: #7db2ff;              /* price in lighter blue */
+}
+
+[data-bs-theme="dark"] .odds-pill:hover{
+  background-color: #28446f;   /* hover a touch brighter */
+  border-color:    #3d5a8b;
+}
+
+/* Optional: make disabled/empty tiles look muted in dark mode */
+[data-bs-theme="dark"] .odds-pill.is-disabled,
+[data-bs-theme="dark"] .odds-pill[aria-disabled="true"]{
+  background-color: #202633;
+  border-color: #2a3146;
+  color: #7784a1;
+}
