@@ -279,6 +279,13 @@ def leaderboard():
     return render_template('leaderboard.html', users=users)
 
 # ---------------- ADMIN ----------------
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.created_at.desc()).all()
+    return render_template('admin_users.html', users=users)
+
 @app.route('/admin/games')
 @login_required
 @admin_required
