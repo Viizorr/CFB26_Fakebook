@@ -11,7 +11,7 @@ body { padding-bottom: 40px; }
   display: grid;
   grid-template-columns: 2fr repeat(3, 1fr); /* Teams | ML | Spread | Total */
   gap: 12px;
-  align-items: stretch;
+  align-items: fit;
 }
 
 .og-team, .og-market { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; }
