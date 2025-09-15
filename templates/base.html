@@ -83,11 +83,11 @@
     {% block content %}{% endblock %}
   </div>
 
-  <!-- Quick Pick offcanvas -->
+  <!-- Quick Pick / Parlay offcanvas -->
   <div class="offcanvas offcanvas-bottom" tabindex="-1" id="betSlip" aria-labelledby="betSlipLabel"
-       style="height:55vh;min-height:360px">
+       style="height:65vh;min-height:380px">
     <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="betSlipLabel">Quick Pick</h5>
+      <h5 class="offcanvas-title" id="betSlipLabel">Bet Slip</h5>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body">
@@ -95,16 +95,11 @@
         Balance: ${{ '%.2f'|format(current_user.balance) if current_user.is_authenticated else '0.00' }}
       </div>
 
-      <form method="post" action="{{ url_for('place_bet') }}">
-        <input type="hidden" name="game_id">
-        <input type="hidden" name="bet_type">
-        <input type="hidden" name="selection">
+      <!-- Parlay list -->
+      <ul class="list-group mb-3" id="parlayList"></ul>
 
-        <div class="fw-semibold" id="bs-game"></div>
-        <div class="d-flex justify-content-between text-muted mb-2">
-          <div id="bs-market"></div>
-          <div class="fw-semibold" id="bs-odds"></div>
-        </div>
+      <form method="post" action="{{ url_for('place_bet') }}">
+        <input type="hidden" name="bets" id="betsField">
 
         <div class="row g-2 align-items-center mb-2">
           <div class="col-6 col-sm-4">
@@ -125,7 +120,7 @@
           <button type="button" id="maxBtn" class="btn btn-outline-secondary">MAX</button>
         </div>
 
-        <button class="btn btn-success w-100">Submit</button>
+        <button class="btn btn-success w-100">Submit Parlay</button>
       </form>
     </div>
   </div>
@@ -147,53 +142,69 @@
         btn.addEventListener('click', () => setTheme(btn.dataset.themeValue));
       });
 
-      // Update automatically if user's OS theme changes while on Auto
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         if ((localStorage.getItem('theme') || 'auto') === 'auto') setTheme('auto');
       });
     })();
   </script>
 
-  <!-- Quick Pick logic (unchanged) -->
+  <!-- Quick Pick + Parlay logic -->
   <script>
     (() => {
       const off = new bootstrap.Offcanvas('#betSlip');
-      let currentOdds = 0;
+      let parlay = []; // array of selected bets
 
-      function payoutFor(stake, odds){
-        const s = parseFloat(stake || 0), o = parseInt(odds, 10);
-        if(!s || !o) return '0.00';
-        const profit = o > 0 ? s * o / 100 : s * 100 / Math.abs(o);
-        return (s + profit).toFixed(2);
+      function combinedOdds(bets) {
+        return bets.reduce((acc, b) => {
+          const o = parseInt(b.price, 10);
+          if (o > 0) return acc * (1 + o / 100);
+          return acc * (1 + 100 / Math.abs(o));
+        }, 1);
+      }
+
+      function updateSlip() {
+        const list = document.getElementById('parlayList');
+        list.innerHTML = '';
+        parlay.forEach((b, i) => {
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.textContent = `${b.label} (${b.price})`;
+          const rm = document.createElement('button');
+          rm.type = 'button';
+          rm.className = 'btn btn-sm btn-outline-danger';
+          rm.textContent = 'x';
+          rm.onclick = () => { parlay.splice(i,1); updateSlip(); };
+          li.appendChild(rm);
+          list.appendChild(li);
+        });
+
+        document.getElementById('betsField').value = JSON.stringify(parlay);
+        calcPayout();
+      }
+
+      function calcPayout() {
+        const stake = parseFloat(document.getElementById('stake').value || 0);
+        if (!stake || parlay.length === 0) {
+          document.getElementById('payout').textContent = '$0.00';
+          return;
+        }
+        const oddsMult = combinedOdds(parlay);
+        const payout = stake * oddsMult;
+        document.getElementById('payout').textContent = '$' + payout.toFixed(2);
       }
 
       document.addEventListener('click', (e) => {
         const pick = e.target.closest('.js-odds-pick');
-        if(!pick) return;
+        if (!pick) return;
 
         const { gameId, betType, selection, label, price, line } = pick.dataset;
-
-        document.querySelector('#betSlip input[name=game_id]').value   = gameId;
-        document.querySelector('#betSlip input[name=bet_type]').value  = betType;
-        document.querySelector('#betSlip input[name=selection]').value = selection;
-
-        document.getElementById('bs-game').textContent   = label;
-        document.getElementById('bs-market').textContent = betType + (line ? ` ${line}` : '');
-        document.getElementById('bs-odds').textContent   = price;
-
-        currentOdds = price;
-        const stake = document.getElementById('stake');
-        stake.value = '';
-        document.getElementById('payout').textContent = '$0.00';
-
+        parlay.push({ gameId, betType, selection, label, price, line });
+        updateSlip();
         off.show();
       });
 
       document.addEventListener('input', (e) => {
-        if(e.target.id === 'stake'){
-          document.getElementById('payout').textContent =
-            '$' + payoutFor(e.target.value, currentOdds);
-        }
+        if(e.target.id === 'stake') calcPayout();
       });
 
       document.querySelectorAll('[data-add]').forEach(btn => {
