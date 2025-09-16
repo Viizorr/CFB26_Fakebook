@@ -197,8 +197,12 @@
         const pick = e.target.closest('.js-odds-pick');
         if (!pick) return;
 
-        const { gameId, betType, selection, label, price, line } = pick.dataset;
-        parlay.push({ gameId, betType, selection, label, price, line });
+        // NOTE: propId is optional; present for prop buttons
+        const { gameId, betType, selection, label, price, line, propId } = pick.dataset;
+
+        // Include propId in the parlay JSON so the server can treat it as a PROP leg
+        parlay.push({ gameId, betType, selection, label, price, line, propId: propId || null });
+
         updateSlip();
         off.show();
       });
