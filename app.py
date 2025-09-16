@@ -431,63 +431,21 @@ def leaderboard():
 
 # ------------------------------ Admin --------------------------------
 
-@app.route('/admin/users', methods=['GET'])
-@login_required
-@admin_required
-def admin_users():
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('admin_users.html', users=users)
+# ------------------------------ Admin (games + props) ------------------------------
 
-
-@app.route('/admin/games', methods=['GET'])
+@app.route('/admin/games')
 @login_required
 @admin_required
 def admin_games():
-    # newest first
     games = Game.query.order_by(Game.start_time.desc()).all()
     return render_template('admin_games.html', games=games)
-
-
-@app.route('/admin/games/new', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def admin_new_game():
-    if request.method == 'POST':
-        def i(name):
-            v = request.form.get(name)
-            return int(v) if v not in (None, '') else None
-
-        def d(name):
-            v = request.form.get(name)
-            return Decimal(v) if v not in (None, '') else None
-
-        g = Game(
-            home_team=request.form['home_team'].strip(),
-            away_team=request.form['away_team'].strip(),
-            start_time=datetime.fromisoformat(request.form['start_time']),
-            status='open',
-            ml_home=i('ml_home'),
-            ml_away=i('ml_away'),
-            spread_line=d('spread_line'),
-            spread_home_odds=i('spread_home_odds'),
-            spread_away_odds=i('spread_away_odds'),
-            total_points=d('total_points'),
-            over_odds=i('over_odds'),
-            under_odds=i('under_odds'),
-        )
-        db.session.add(g)
-        db.session.commit()
-        flash('Game created', 'success')
-        return redirect(url_for('admin_games'))
-
-    return render_template('admin_edit_game.html', game=None)
-
 
 @app.route('/admin/games/<int:game_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_edit_game(game_id):
     game = Game.query.get_or_404(game_id)
+
     if request.method == 'POST':
         def i(name):
             v = request.form.get(name)
@@ -499,6 +457,7 @@ def admin_edit_game(game_id):
         game.home_team = request.form.get('home_team', game.home_team).strip()
         game.away_team = request.form.get('away_team', game.away_team).strip()
         if request.form.get('start_time'):
+            # accept "YYYY-MM-DD HH:MM"
             game.start_time = datetime.fromisoformat(request.form['start_time'])
         game.status = request.form.get('status', game.status)
 
@@ -511,19 +470,13 @@ def admin_edit_game(game_id):
         game.over_odds = i('over_odds')
         game.under_odds = i('under_odds')
 
-        # --- Tags (comma separated) ---
-        raw = request.form.get('tags', '')
-        names = [n.strip() for n in raw.split(',') if n.strip()]
-        game.tags = [get_or_create_tag(n) for n in names]
-
         db.session.commit()
         flash('Game updated.', 'success')
         return redirect(url_for('admin_games'))
 
-    # Prefill tags text
-    tags_text = ', '.join(t.name for t in game.tags)
-    return render_template('admin_edit_game.html', game=game, tags_text=tags_text)
-
+    # make sure props relationship exists; if not, show an empty list
+    props = getattr(game, 'props', []) or []
+    return render_template('admin_edit_game.html', game=game, props=props)
 
 @app.route('/admin/games/<int:game_id>/close', methods=['POST'])
 @login_required
@@ -535,111 +488,114 @@ def admin_close_game(game_id):
     flash('Betting closed for game.', 'info')
     return redirect(url_for('admin_games'))
 
-
-@app.route('/admin/games/<int:game_id>/grade', methods=['POST'])
-@login_required
-@admin_required
-def admin_grade_game(game_id):
-    game = Game.query.get_or_404(game_id)
-
-    # scores
-    try:
-        game.home_score = int(request.form['home_score'])
-        game.away_score = int(request.form['away_score'])
-    except Exception:
-        flash('Invalid scores', 'danger')
-        return redirect(url_for('admin_games'))
-
-    total_points = game.home_score + game.away_score
-    margin = game.home_score - game.away_score  # >0 home wins, <0 away wins, =0 tie
+# ---- Prop management ----
+# IMPORTANT: function names (endpoints) match exactly what templates call.
 
 @app.route('/admin/games/<int:game_id>/props/new', methods=['POST'])
 @login_required
 @admin_required
-def admin_new_prop(game_id):
+def admin_prop_new(game_id):
+    """Create a new prop on a game."""
     game = Game.query.get_or_404(game_id)
-    kind = request.form.get('prop_type')  # 'OU' or 'YN'
+
     name = request.form.get('name', '').strip()
+    prop_type = request.form.get('prop_type', 'OU')
+    status = request.form.get('status', 'open')
 
-    if not name or kind not in ('OU', 'YN'):
-        flash('Invalid prop form', 'danger')
-        return redirect(url_for('admin_edit_game', game_id=game.id))
+    def i(name):
+        v = request.form.get(name)
+        return int(v) if v not in (None, '') else None
+    def d(name):
+        v = request.form.get(name)
+        return Decimal(v) if v not in (None, '') else None
 
-    if kind == 'OU':
-        line = Decimal(request.form.get('line'))
-        over = int(request.form.get('over_odds'))
-        under = int(request.form.get('under_odds'))
-        p = Prop(game_id=game.id, name=name, prop_type='OU',
-                 line=line, over_odds=over, under_odds=under)
+    # Build the prop object depending on type
+    if prop_type == 'OU':
+        newp = GameProp(
+            game_id=game.id,
+            name=name,
+            prop_type='OU',
+            line=d('line'),
+            over_odds=i('over_odds'),
+            under_odds=i('under_odds'),
+            status=status,
+        )
     else:
-        yes = int(request.form.get('yes_odds'))
-        no = int(request.form.get('no_odds'))
-        p = Prop(game_id=game.id, name=name, prop_type='YN',
-                 yes_odds=yes, no_odds=no)
+        newp = GameProp(
+            game_id=game.id,
+            name=name,
+            prop_type='BOOL',
+            yes_odds=i('yes_odds'),
+            no_odds=i('no_odds'),
+            status=status,
+        )
 
-    db.session.add(p)
+    db.session.add(newp)
     db.session.commit()
-    flash('Prop created', 'success')
+    flash('Prop added.', 'success')
     return redirect(url_for('admin_edit_game', game_id=game.id))
 
-
-@app.route('/admin/props/<int:prop_id>/close', methods=['POST'])
+@app.route('/admin/props/<int:prop_id>/status', methods=['POST'])
 @login_required
 @admin_required
-def admin_close_prop(prop_id):
-    p = Prop.query.get_or_404(prop_id)
-    p.status = 'closed'
+def admin_prop_status(prop_id):
+    """Open/close a prop."""
+    p = GameProp.query.get_or_404(prop_id)
+    p.status = request.form.get('status', p.status)
     db.session.commit()
-    flash('Prop closed', 'info')
+    flash('Prop status updated.', 'success')
     return redirect(url_for('admin_edit_game', game_id=p.game_id))
-
 
 @app.route('/admin/props/<int:prop_id>/grade', methods=['POST'])
 @login_required
 @admin_required
 def admin_grade_prop(prop_id):
-    p = Prop.query.get_or_404(prop_id)
+    """Grade a prop (OU with result_value or BOOL with result_bool)."""
+    p = GameProp.query.get_or_404(prop_id)
 
-    # Capture the admin-entered result
+    # mark graded and resolve all pending PropBets
     if p.prop_type == 'OU':
-        p.result_value = Decimal(request.form.get('result_value'))
+        try:
+            result_value = Decimal(request.form['result_value'])
+        except Exception:
+            flash('Invalid result value.', 'danger')
+            return redirect(url_for('admin_edit_game', game_id=p.game_id))
+        p.status = 'graded'
+        p.result_value = result_value
     else:
-        p.result_bool = (request.form.get('result_bool') == 'true')
+        result_bool = request.form.get('result_bool')
+        if result_bool not in ('true', 'false'):
+            flash('Choose YES or NO.', 'danger')
+            return redirect(url_for('admin_edit_game', game_id=p.game_id))
+        p.status = 'graded'
+        p.result_bool = (result_bool == 'true')
 
-    p.status = 'graded'
-    db.session.commit()
+    # grade all pending prop bets for this prop
+    bets = PropBet.query.filter_by(prop_id=p.id, status='pending').all()
+    for b in bets:
+        b.status = 'lost'
+        b.payout = Decimal('0.00')
 
-    # Grade all pending single bets on this prop
-    pending = Bet.query.filter_by(prop_id=p.id, status='pending').all()
-    for bet in pending:
-        result = 'lost'
-        payout = Decimal('0.00')
+        if p.prop_type == 'OU' and p.result_value is not None:
+            # treat "OVER" / "UNDER"
+            if b.selection == 'OVER' and p.result_value > p.line:
+                b.status = 'won'; b.payout = b.stake + american_profit(b.stake, b.odds)
+            elif b.selection == 'UNDER' and p.result_value < p.line:
+                b.status = 'won'; b.payout = b.stake + american_profit(b.stake, b.odds)
+            elif p.result_value == p.line:
+                b.status = 'push'; b.payout = b.stake
+        elif p.prop_type == 'BOOL' and p.result_bool is not None:
+            # treat "YES" / "NO"
+            winner = 'YES' if p.result_bool else 'NO'
+            if b.selection == winner:
+                b.status = 'won'; b.payout = b.stake + american_profit(b.stake, b.odds)
 
-        if p.prop_type == 'OU':
-            # Equal to line = push
-            if p.result_value == p.line:
-                result = 'push'
-                payout = bet.stake
-            else:
-                went_over = p.result_value > p.line
-                pick_over = (bet.selection == 'OVER')
-                if went_over == pick_over:
-                    result = 'won'
-                    payout = bet.stake + american_profit(bet.stake, bet.odds)
-        else:
-            truth = bool(p.result_bool)
-            pick_yes = (bet.selection == 'YES')
-            if truth == pick_yes:
-                result = 'won'
-                payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        bet.status = result
-        bet.payout = payout.quantize(Decimal('0.01'))
-        if result in ('won', 'push'):
-            bet.user.balance = (Decimal(bet.user.balance) + bet.payout).quantize(Decimal('0.01'))
+        b.payout = b.payout.quantize(Decimal('0.01'))
+        if b.status in ('won', 'push'):
+            b.user.balance = (Decimal(b.user.balance) + b.payout).quantize(Decimal('0.01'))
 
     db.session.commit()
-    flash('Prop graded', 'success')
+    flash('Prop graded.', 'success')
     return redirect(url_for('admin_edit_game', game_id=p.game_id))
 
     # -------- Grade single bets (pending) --------
