@@ -302,111 +302,106 @@ def game_detail(game_id):
 
 # --------------------------- Betting ---------------------------------
 
-@app.route("/bet", methods=["POST"])
+@app.route('/bet', methods=['POST'])
 @login_required
 def place_bet():
-    # Parlay?
-    bets_json = request.form.get("bets")
-    if bets_json:
+    # ---- Parlay flow (bets JSON present) ----
+    bets_json = request.form.get('bets')
+    if bets_json and bets_json.strip():
         try:
             legs = json.loads(bets_json)
         except Exception:
-            flash("Invalid parlay data", "danger")
-            return redirect(url_for("index"))
+            flash('Invalid parlay data', 'danger')
+            return redirect(url_for('index'))
 
-        stake = Decimal(request.form["stake"])
+        stake = Decimal(request.form['stake'])
         if Decimal(current_user.balance) < stake:
-            flash("Insufficient balance", "danger")
-            return redirect(url_for("index"))
+            flash('Insufficient balance', 'danger')
+            return redirect(url_for('index'))
 
         parlay_legs = []
         for leg in legs:
-            game = Game.query.get_or_404(int(leg["gameId"]))
-            if game.status != "open":
-                flash(f"Betting closed for {game.home_team} vs {game.away_team}", "warning")
-                return redirect(url_for("index"))
+            game = Game.query.get_or_404(int(leg['gameId']))
+            if game.status != 'open':
+                flash(f"Betting closed for {game.home_team} vs {game.away_team}", 'warning')
+                return redirect(url_for('index'))
 
-            bet_type = leg["betType"]
-            selection = leg["selection"]
+            bet_type = leg['betType']
+            selection = leg['selection']
             odds, line = None, None
-            if bet_type == "ML":
-                odds = game.ml_home if selection == "HOME" else game.ml_away
-            elif bet_type == "SPREAD":
+
+            if bet_type == 'ML':
+                odds = game.ml_home if selection == 'HOME' else game.ml_away
+            elif bet_type == 'SPREAD':
                 line = game.spread_line
-                odds = game.spread_home_odds if selection == "HOME" else game.spread_away_odds
-            elif bet_type == "TOTAL":
+                odds = game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
+            elif bet_type == 'TOTAL':
                 line = game.total_points
-                odds = game.over_odds if selection == "OVER" else game.under_odds
+                odds = game.over_odds if selection == 'OVER' else game.under_odds
 
             if odds is None:
-                flash("One of the parlay legs is invalid.", "danger")
-                return redirect(url_for("index"))
+                flash('One of the parlay legs is invalid.', 'danger')
+                return redirect(url_for('index'))
 
             parlay_legs.append({
-                "game_id": game.id,
-                "bet_type": bet_type,
-                "selection": selection,
-                "odds": odds,
-                "line": line
+                'game_id': game.id,
+                'bet_type': bet_type,
+                'selection': selection,
+                'odds': odds,
+                'line': line
             })
 
-        current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal("0.01"))
+        # Deduct balance and create parlay + legs
+        current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal('0.01'))
         pb = ParlayBet(user_id=current_user.id, stake=stake)
         db.session.add(pb)
-        db.session.flush()  # get pb.id
-
+        db.session.flush()
         for leg in parlay_legs:
-            db.session.add(ParlayLeg(
-                parlay_id=pb.id,
-                game_id=leg["game_id"],
-                bet_type=leg["bet_type"],
-                selection=leg["selection"],
-                odds=leg["odds"],
-                line=leg["line"]
-            ))
-
+            db.session.add(ParlayLeg(parlay_id=pb.id,
+                                     game_id=leg['game_id'],
+                                     bet_type=leg['bet_type'],
+                                     selection=leg['selection'],
+                                     odds=leg['odds'],
+                                     line=leg['line']))
         db.session.commit()
-        flash("Parlay placed!", "success")
-        return redirect(url_for("account"))
+        flash('Parlay placed!', 'success')
+        return redirect(url_for('account'))
 
-    # Single bet
-    game_id = int(request.form["game_id"])
-    bet_type = request.form["bet_type"]
-    selection = request.form["selection"]
-    stake = Decimal(request.form["stake"])
+    # ---- Single bet flow ----
+    game_id = int(request.form['game_id'])
+    bet_type = request.form['bet_type']
+    selection = request.form['selection']
+    stake = Decimal(request.form['stake'])
 
     game = Game.query.get_or_404(game_id)
-    if game.status != "open":
-        flash("Betting closed for this game", "warning")
-        return redirect(url_for("index"))
+    if game.status != 'open':
+        flash('Betting closed for this game', 'warning')
+        return redirect(url_for('index'))
 
     odds, line = None, None
-    if bet_type == "ML":
-        odds = game.ml_home if selection == "HOME" else game.ml_away
-    elif bet_type == "SPREAD":
+    if bet_type == 'ML':
+        odds = game.ml_home if selection == 'HOME' else game.ml_away
+    elif bet_type == 'SPREAD':
         line = game.spread_line
-        odds = game.spread_home_odds if selection == "HOME" else game.spread_away_odds
-    elif bet_type == "TOTAL":
+        odds = game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
+    elif bet_type == 'TOTAL':
         line = game.total_points
-        odds = game.over_odds if selection == "OVER" else game.under_odds
+        odds = game.over_odds if selection == 'OVER' else game.under_odds
 
     if odds is None:
-        flash("This market is not available", "danger")
-        return redirect(url_for("game_detail", game_id=game.id))
+        flash('This market is not available', 'danger')
+        return redirect(url_for('game_detail', game_id=game.id))
 
     if Decimal(current_user.balance) < stake:
-        flash("Insufficient balance", "danger")
-        return redirect(url_for("game_detail", game_id=game.id))
+        flash('Insufficient balance', 'danger')
+        return redirect(url_for('game_detail', game_id=game.id))
 
-    current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal("0.01"))
-    db.session.add(Bet(
-        user_id=current_user.id, game_id=game.id, bet_type=bet_type,
-        selection=selection, odds=odds, line=line, stake=stake
-    ))
+    current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal('0.01'))
+    db.session.add(Bet(user_id=current_user.id, game_id=game.id, bet_type=bet_type,
+                       selection=selection, odds=odds, line=line, stake=stake))
     db.session.commit()
-    flash("Bet placed!", "success")
-    return redirect(url_for("account"))
-
+    flash('Bet placed!', 'success')
+    return redirect(url_for('account'))
 
 # -------------------- Account / Leaderboard --------------------------
 
