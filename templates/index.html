@@ -2,19 +2,38 @@
 {% block content %}
 
 <h3 class="mb-3">Open Games</h3>
+
 {% if open_games %}
   {% for g in open_games %}
     {% set away_spread = (0 - g.spread_line) if g.spread_line is not none else None %}
-    <div class="card mb-3 game-card">
+    <div class="card mb-3 game-card" {% if g.tags_text %}data-tags="{{ g.tags_text|e }}"{% endif %}>
       <div class="card-body">
+
+        <!-- top row: time + actions -->
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div class="text-muted small">{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</div>
-          <a class="btn btn-sm btn-primary" href="{{ url_for('game_detail', game_id=g.id) }}">Details</a>
+          <div class="d-flex align-items-center gap-2">
+            {% if g.props is defined and g.props %}
+              <a class="badge text-bg-info text-decoration-none" href="{{ url_for('game_detail', game_id=g.id) }}">
+                Props {{ g.props|length }}
+              </a>
+            {% endif %}
+            <a class="btn btn-sm btn-primary" href="{{ url_for('game_detail', game_id=g.id) }}">Details</a>
+          </div>
         </div>
 
-        <!-- column labels aligned with odds grid -->
+        <!-- optional tags (shown if you provide tags_text like "NFL, Primetime") -->
+        {% if g.tags_text %}
+        <div class="mb-2">
+          {% for t in g.tags_text.split(',') %}
+            <span class="badge rounded-pill text-bg-secondary me-1">{{ t.strip() }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- header row aligned to the grid below -->
         <div class="odds-grid text-uppercase text-muted small fw-bold mb-1">
-          <div></div> <!-- empty slot for team names -->
+          <div></div> <!-- empty slot for team names column -->
           <div class="text-center">ML</div>
           <div class="text-center">Spread</div>
           <div class="text-center">Total</div>
@@ -22,7 +41,7 @@
 
         <!-- odds grid (top row = AWAY, bottom row = HOME) -->
         <div class="odds-grid">
-          <!-- teams -->
+          <!-- teams column -->
           <div class="og-team">
             <div class="team-name">{{ g.away_team }}</div>
             <div class="team-name">{{ g.home_team }}</div>
@@ -30,6 +49,7 @@
 
           <!-- moneyline -->
           <div class="og-market">
+            <!-- AWAY ML -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
@@ -40,6 +60,7 @@
                 <div class="odds-line">{{ '+' if g.ml_away > 0 else '' }}{{ g.ml_away }}</div>
               {% else %}<div class="text-muted">—</div>{% endif %}
             </div>
+            <!-- HOME ML -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
@@ -52,8 +73,9 @@
             </div>
           </div>
 
-          <!-- spread -->
+          <!-- spread (line is relative to HOME; away is the opposite) -->
           <div class="og-market">
+            <!-- AWAY spread -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
@@ -66,6 +88,7 @@
                 <div class="odds-price">{{ g.spread_away_odds }}</div>
               {% else %}<div class="text-muted">—</div>{% endif %}
             </div>
+            <!-- HOME spread -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
@@ -82,6 +105,7 @@
 
           <!-- totals -->
           <div class="og-market">
+            <!-- OVER -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="TOTAL"
@@ -93,6 +117,7 @@
                 <div class="odds-price">{{ g.over_odds }}</div>
               {% else %}<div class="text-muted">—</div>{% endif %}
             </div>
+            <!-- UNDER -->
             <div class="odds-pill js-odds-pick"
                  data-game-id="{{ g.id }}"
                  data-bet-type="TOTAL"
@@ -106,6 +131,7 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
   {% endfor %}
@@ -118,17 +144,43 @@
 <h3 class="mb-3">Past Games</h3>
 {% if past_games %}
 <table class="table table-sm table-hover">
-  <thead><tr><th>Matchup</th><th>Start</th><th>Status</th><th>Moneyline</th><th>Spread</th><th>Total</th><th></th></tr></thead>
+  <thead>
+    <tr>
+      <th>Matchup</th>
+      <th>Start</th>
+      <th>Status</th>
+      <th>Moneyline</th>
+      <th>Spread</th>
+      <th>Total</th>
+      <th></th>
+    </tr>
+  </thead>
   <tbody>
     {% for g in past_games %}
     <tr>
       <td><strong>{{ g.away_team }}</strong> @ <strong>{{ g.home_team }}</strong></td>
       <td>{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>{{ g.status }}</td>
-      <td>{% if g.ml_home is not none and g.ml_away is not none %}HOME {{ g.ml_home }} / AWAY {{ g.ml_away }}{% else %}—{% endif %}</td>
-      <td>{% if g.spread_line is not none %}{{ g.home_team }} {{ g.spread_line }} (H {{ g.spread_home_odds }}, A {{ g.spread_away_odds }}){% else %}—{% endif %}</td>
-      <td>{% if g.total_points is not none %}{{ g.total_points }} (O {{ g.over_odds }}, U {{ g.under_odds }}){% else %}—{% endif %}</td>
-      <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('game_detail', game_id=g.id) }}">View</a></td>
+      <td>
+        {% if g.ml_home is not none and g.ml_away is not none %}
+          HOME {{ g.ml_home }} / AWAY {{ g.ml_away }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if g.spread_line is not none %}
+          {{ g.home_team }} {{ g.spread_line }}
+          (H {{ g.spread_home_odds }}, A {{ g.spread_away_odds }})
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if g.total_points is not none %}
+          {{ g.total_points }} (O {{ g.over_odds }}, U {{ g.under_odds }})
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        <a class="btn btn-outline-secondary btn-sm"
+           href="{{ url_for('game_detail', game_id=g.id) }}">View</a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
