@@ -10,6 +10,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, InterfaceError
+from flask_migrate import Migrate
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ------------------------- DB URL & App Setup -------------------------
 
@@ -31,6 +34,8 @@ app.config.update(
     },
 )
 db = SQLAlchemy(app)
+# After db is created
+migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -1006,18 +1011,6 @@ def admin_grade_prop(prop_id):
     db.session.commit()
     flash("Game graded and balances updated.", "success")
     return redirect(url_for("admin_games"))
-
-
-# ----------------------------- Init ----------------------------------
-
-with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(is_admin=True).first():
-        admin = User(username="admin", is_admin=True, balance=Decimal("100000.00"))
-        admin.set_password("admin123")
-        db.session.add(admin)
-        db.session.commit()
-        print("Created default admin: admin / admin123")
 
 
 if __name__ == "__main__":
