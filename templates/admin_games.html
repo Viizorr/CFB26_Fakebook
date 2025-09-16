@@ -51,6 +51,15 @@
  	<button type="submit" class="btn btn-danger btn-sm ms-1">Force Delete</button>
 	</form>
         {% endif %}
+		  {% if g.status == 'open' %}
+  <form class="d-inline" method="post" action="{{ url_for('admin_close_game', game_id=g.id) }}">
+    <button class="btn btn-sm btn-outline-secondary">Close</button>
+  </form>
+{% elif g.status == 'closed' %}
+  <form class="d-inline" method="post" action="{{ url_for('admin_reopen_game', game_id=g.id) }}">
+    <button class="btn btn-sm btn-outline-success">Reopen</button>
+  </form>
+{% endif %}
       </td>
     </tr>
     {% endfor %}
