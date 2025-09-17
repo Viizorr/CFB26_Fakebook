@@ -14,26 +14,24 @@ from flask_migrate import Migrate
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-# DB URL & App Setup
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
-db_path = os.getenv("DATABASE_URL") or f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
+# ------------------------- DB URL & App Setup -------------------------
+
+db_path = os.getenv("DATABASE_URL")
 
 if db_path and db_path.startswith("postgres://"):
     db_path = db_path.replace("postgres://", "postgresql://", 1)
 
-if db_path and db_path.startswith("postgresql://") and "sslmode=" not in db_path:
-    db_path += ("&" if "?" in db_path else "?") + "sslmode=require"
+# If DATABASE_URL is not set, fall back to local SQLite
+if not db_path:
+    db_path = f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
 
 app = Flask(__name__)
 app.config.update(
-    SECRET_KEY=os.getenv('SECRET_KEY', '58FEEC8BC8DD1F324832D4064E5F3591'),
+    SECRET_KEY=os.getenv('SECRET_KEY', 'a_default_secret_key_for_dev'),
     SQLALCHEMY_DATABASE_URI=db_path,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
-    SQLALCHEMY_ENGINE_OPTIONS={
-        "pool_pre_ping": True,
-        "pool_recycle": 1800,
-        "connect_args": {"sslmode": "require"} if db_path.startswith("postgresql://") else {},
-    },
 )
 db = SQLAlchemy(app)
 # After db is created
