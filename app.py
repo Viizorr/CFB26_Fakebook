@@ -28,11 +28,13 @@ if not db_path:
     db_path = f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
 
 app = Flask(__name__)
+print(f"--- Configuring database with URL: {db_path} ---")
 app.config.update(
     SECRET_KEY=os.getenv('SECRET_KEY', 'a_default_secret_key_for_dev'),
     SQLALCHEMY_DATABASE_URI=db_path,
     SQLALCHEMY_TRACK_MODIFICATIONS=False,
 )
+
 db = SQLAlchemy(app)
 # After db is created
 migrate = Migrate(app, db)
