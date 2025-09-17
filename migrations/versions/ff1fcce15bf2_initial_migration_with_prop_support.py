@@ -24,13 +24,6 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
     )
-    op.create_table('game_tag',
-    sa.Column('game_id', sa.Integer(), nullable=False),
-    sa.Column('tag_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['game_id'], ['game.id'], ),
-    sa.ForeignKeyConstraint(['tag_id'], ['tag.id'], ),
-    sa.PrimaryKeyConstraint('game_id', 'tag_id')
-    )
     op.create_table('prop',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('game_id', sa.Integer(), nullable=False),
@@ -46,6 +39,13 @@ def upgrade():
     sa.Column('result_bool', sa.Boolean(), nullable=True),
     sa.ForeignKeyConstraint(['game_id'], ['game.id'], ),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('game_tag',
+    sa.Column('game_id', sa.Integer(), nullable=False),
+    sa.Column('tag_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['game_id'], ['game.id'], ),
+    sa.ForeignKeyConstraint(['tag_id'], ['tag.id'], ),
+    sa.PrimaryKeyConstraint('game_id', 'tag_id')
     )
     with op.batch_alter_table('bet', schema=None) as batch_op:
         batch_op.add_column(sa.Column('prop_id', sa.Integer(), nullable=True))
