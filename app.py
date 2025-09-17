@@ -15,8 +15,7 @@ from flask_migrate import Migrate
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 # ------------------------- DB URL & App Setup -------------------------
-
-db_path = os.getenv("DATABASE_URL_NEW") or f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
+db_path = os.getenv("DATABASE_URL") or f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}"
 if db_path.startswith("postgres://"):
     db_path = db_path.replace("postgres://", "postgresql://", 1)
 if db_path.startswith("postgresql://") and "sslmode=" not in db_path:
