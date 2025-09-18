@@ -1,167 +1,80 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<h3>{{ game.away_team }} @ {{ game.home_team }}</h3>
-<p><strong>Start:</strong> {{ game.start_time.strftime('%Y-%m-%d %H:%M') }} | <strong>Status:</strong> {{ game.status }}</p>
-<hr>
+<div class="row">
+    <div class="col-md-8">
+        <h3>{{ game.away_team }} @ {{ game.home_team }}</h3>
+        <p><strong>Start:</strong> {{ game.start_time.strftime('%Y-%m-%d %H:%M') }} | <strong>Status:</strong> {{ game.status }}</p>
+        <hr>
 
-{% if game.status == 'open' %}
-<div class="row mb-2">
-    <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Moneyline</div></div>
-    <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Spread</div></div>
-    <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Total</div></div>
-</div>
-
-<div class="row g-3">
-
-    <div class="col-md-4 d-grid gap-2">
-        {% if game.ml_home is not none and game.ml_away is not none %}
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="ML">
-            <input type="hidden" name="selection" value="HOME">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">HOME ({{ game.ml_home }})</button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
+        {% if game.status == 'open' %}
+            <div class="row mb-2">
+                <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Moneyline</div></div>
+                <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Spread</div></div>
+                <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Total</div></div>
             </div>
-        </form>
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="ML">
-            <input type="hidden" name="selection" value="AWAY">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">AWAY ({{ game.ml_away }})</button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-            </div>
-        </form>
-        {% else %}
-        <p class="text-muted text-center mb-0">No moneyline offered.</p>
-        {% endif %}
-    </div>
-
-    <div class="col-md-4 d-grid gap-2">
-        {% if game.spread_line is not none %}
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="SPREAD">
-            <input type="hidden" name="selection" value="HOME">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">HOME {{ game.spread_line }} ({{ game.spread_home_odds }})</button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-            </div>
-        </form>
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="SPREAD">
-            <input type="hidden" name="selection" value="AWAY">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">
-                    AWAY 
-                    {% set away_spread = -game.spread_line %}
-                    {{ '+' if away_spread > 0 else '' }}{{ away_spread }} 
-                    ({{ game.spread_away_odds }})
-                </button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-            </div>
-        </form>
-        {% else %}
-        <p class="text-muted text-center mb-0">No spread offered.</p>
-        {% endif %}
-    </div>
-
-    <div class="col-md-4 d-grid gap-2">
-        {% if game.total_points is not none %}
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="TOTAL">
-            <input type="hidden" name="selection" value="OVER">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">OVER {{ game.total_points }} ({{ game.over_odds }})</button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-            </div>
-        </form>
-        <form action="{{ url_for('place_bet') }}" method="POST">
-            <input type="hidden" name="game_id" value="{{ game.id }}">
-            <input type="hidden" name="bet_type" value="TOTAL">
-            <input type="hidden" name="selection" value="UNDER">
-            <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">UNDER {{ game.total_points }} ({{ game.under_odds }})</button>
-                <span class="input-group-text">$</span>
-                <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-            </div>
-        </form>
-        {% else %}
-        <p class="text-muted text-center mb-0">No total offered.</p>
-        {% endif %}
-    </div>
-</div>
-
-{% if game.props %}
-<hr>
-<h5 class="mb-3">Props</h5>
-<div class="row g-3">
-    {% for p in game.props if p.status != 'closed' %}
-    <div class="col-md-6">
-        <div class="fw-semibold mb-2">{{ p.name }}</div>
-        {% if p.prop_type == 'OU' %}
-        <div class="d-flex gap-2">
-            <form action="{{ url_for('place_bet') }}" method="POST" class="w-100">
-                <input type="hidden" name="prop_id" value="{{ p.id }}">
-                <input type="hidden" name="bet_type" value="PROP">
-                <input type="hidden" name="selection" value="OVER">
-                <div class="input-group">
-                    <button class="btn btn-light w-50" type="submit">Over {{ '%.2f'|format(p.line) }} ({{ p.over_odds }})</button>
-                    <span class="input-group-text">$</span>
-                    <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
+            <div class="row g-3">
+                <div class="col-md-4 d-grid gap-2">
+                    {% if game.ml_home is not none %}
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-h" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="HOME" data-price="{{ game.ml_home }}" data-label="{{ game.home_team }} ML">HOME ({{ game.ml_home }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-a" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="AWAY" data-price="{{ game.ml_away }}" data-label="{{ game.away_team }} ML">AWAY ({{ game.ml_away }})</button>
+                    {% endif %}
                 </div>
-            </form>
-            <form action="{{ url_for('place_bet') }}" method="POST" class="w-100">
-                <input type="hidden" name="prop_id" value="{{ p.id }}">
-                <input type="hidden" name="bet_type" value="PROP">
-                <input type="hidden" name="selection" value="UNDER">
-                <div class="input-group">
-                    <button class="btn btn-light w-50" type="submit">Under {{ '%.2f'|format(p.line) }} ({{ p.under_odds }})</button>
-                    <span class="input-group-text">$</span>
-                    <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
+                <div class="col-md-4 d-grid gap-2">
+                    {% if game.spread_line is not none %}
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-h" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="HOME" data-price="{{ game.spread_home_odds }}" data-line="{{ game.spread_line }}" data-label="{{ game.home_team }} {{ game.spread_line }}">HOME {{ game.spread_line }} ({{ game.spread_home_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-a" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="AWAY" data-price="{{ game.spread_away_odds }}" data-line="{{ -game.spread_line }}" data-label="{{ game.away_team }} {{ -game.spread_line if game.spread_line > 0 else game.spread_line|abs }}">AWAY {% set awayspread = -game.spread_line %}{{ '+' if awayspread > 0 else '' }}{{ awayspread }} ({{ game.spread_away_odds }})</button>
+                    {% endif %}
                 </div>
-            </form>
+                <div class="col-md-4 d-grid gap-2">
+                    {% if game.total_points is not none %}
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-o" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="OVER" data-price="{{ game.over_odds }}" data-line="{{ game.total_points }}" data-label="Over {{ game.total_points }}">OVER {{ game.total_points }} ({{ game.over_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-u" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="UNDER" data-price="{{ game.under_odds }}" data-line="{{ game.total_points }}" data-label="Under {{ game.total_points }}">UNDER {{ game.total_points }} ({{ game.under_odds }})</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if game.props %}
+            <hr>
+            <h5 class="mb-3">Props</h5>
+            {% for p in game.props if p.status != 'closed' %}
+                <div class="fw-semibold">{{ p.name }}</div>
+                <div class="d-flex gap-2 mt-1 mb-3">
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-o" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="OVER" data-price="{{ p.over_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Over {{ p.line }}">Over {{ '%.2f'|format(p.line) }} ({{ p.over_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-u" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="UNDER" data-price="{{ p.under_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Under {{ p.line }}">Under {{ '%.2f'|format(p.line) }} ({{ p.under_odds }})</button>
+                </div>
+            {% endfor %}
+            {% endif %}
+
+        {% else %}
+            <p class="text-muted">Betting is closed for this game.</p>
+        {% endif %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                Bet Slip
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('place_bet') }}" method="POST" id="bet-slip-form">
+                    <ul class="list-group list-group-flush" id="bet-slip-legs">
+                        <li class="list-group-item text-muted" id="bet-slip-empty">Your bet slip is empty.</li>
+                    </ul>
+                    <div id="bet-slip-footer" class="mt-3" style="display: none;">
+                        <input type="hidden" name="bets" id="bets-json-input">
+                        <label for="stake" class="form-label">Stake</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="stake" id="stake" class="form-control" required step="0.01" min="0.01">
+                        </div>
+                        <div class="d-grid mt-3">
+                            <button type="submit" class="btn btn-success">Place Bet</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
-        {% else %} {# YN Props #}
-        <div class="d-flex gap-2">
-            <form action="{{ url_for('place_bet') }}" method="POST" class="w-100">
-                <input type="hidden" name="prop_id" value="{{ p.id }}">
-                <input type="hidden" name="bet_type" value="PROP">
-                <input type="hidden" name="selection" value="YES">
-                <div class="input-group">
-                    <button class="btn btn-light w-50" type="submit">YES ({{ p.yes_odds }})</button>
-                    <span class="input-group-text">$</span>
-                    <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-                </div>
-            </form>
-            <form action="{{ url_for('place_bet') }}" method="POST" class="w-100">
-                <input type="hidden" name="prop_id" value="{{ p.id }}">
-                <input type="hidden" name="bet_type" value="PROP">
-                <input type="hidden" name="selection" value="NO">
-                <div class="input-group">
-                    <button class="btn btn-light w-50" type="submit">NO ({{ p.no_odds }})</button>
-                    <span class="input-group-text">$</span>
-                    <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
-                </div>
-            </form>
-        </div>
-        {% endif %}
     </div>
-    {% endfor %}
 </div>
-{% endif %}
-
-{% else %}
-<p class="text-muted">Betting is closed for this game.</p>
-{% endif %}
-
 {% endblock %}

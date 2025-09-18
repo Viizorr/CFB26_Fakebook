@@ -286,82 +286,61 @@ def game_detail(game_id):
 @app.route('/bet', methods=['POST'])
 @login_required
 def place_bet():
-    # Get the raw form data
-    stake_str = request.form.get('stake')
+    stake = to_decimal(request.form.get('stake'))
     bets_json = request.form.get('bets')
 
-    # Initialize variables
-    game_id, prop_id, bet_type, selection = None, None, None, None
-    stake = to_decimal(stake_str)
-
-    # --- NEW: Logic to handle JavaScript (JSON) submission ---
-    if bets_json:
-        try:
-            # The JS sends a list of bets; for now, we just handle the first one
-            bet_data = json.loads(bets_json)[0]
-            
-            # Extract data from the JSON payload (note the 'camelCase' keys)
-            game_id = to_int(bet_data.get('gameId'))
-            prop_id = to_int(bet_data.get('propId'))
-            bet_type = bet_data.get('betType')
-            selection = bet_data.get('selection')
-        except (json.JSONDecodeError, IndexError):
-            flash('There was an error processing the bet data.', 'danger')
-            return redirect(request.referrer or url_for('index'))
-    # --- Fallback for non-JavaScript forms ---
-    else:
-        game_id = to_int(request.form.get('game_id'))
-        prop_id = to_int(request.form.get('prop_id'))
-        bet_type = request.form.get('bet_type')
-        selection = request.form.get('selection')
-
-    # --- Universal validation logic ---
-    if not all([bet_type, selection, stake]) or stake <= 0:
+    if not stake or stake <= 0 or not bets_json:
         flash('Invalid bet information provided.', 'danger')
         return redirect(request.referrer or url_for('index'))
 
     if current_user.balance < stake:
         flash('Insufficient balance.', 'danger')
         return redirect(url_for('account'))
-
-    odds, line, target_game_id = None, None, None
     
-    if prop_id:
-        prop = Prop.query.get_or_404(prop_id)
-        if prop.status != 'open':
-            flash('This prop is closed for betting.', 'warning')
-            return redirect(url_for('game_detail', game_id=prop.game_id))
-        target_game_id = prop.game_id
-        if prop.prop_type == 'OU':
-            line, odds = prop.line, prop.over_odds if selection == 'OVER' else prop.under_odds
-        else: # YN
-            line, odds = None, prop.yes_odds if selection == 'YES' else prop.no_odds
-    elif game_id:
-        game = Game.query.get_or_404(game_id)
-        if game.status != 'open':
-            flash('Betting is closed for this game.', 'warning')
-            return redirect(url_for('game_detail', game_id=game.id))
-        target_game_id = game.id
-        if bet_type == 'ML':
-            odds = game.ml_home if selection == 'HOME' else game.ml_away
-        elif bet_type == 'SPREAD':
-            line, odds = game.spread_line, game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
-        elif bet_type == 'TOTAL':
-            line, odds = game.total_points, game.over_odds if selection == 'OVER' else game.under_odds
-    else:
-        flash('A valid game or prop must be selected.', 'danger')
-        return redirect(url_for('index'))
-
-    if odds is None:
-        flash('This market is not available for betting.', 'danger')
+    try:
+        bets_data = json.loads(bets_json)
+        if not isinstance(bets_data, list) or not bets_data:
+            raise ValueError("Bets data is empty or not a list.")
+    except (json.JSONDecodeError, ValueError) as e:
+        flash(f'Error processing bet data: {e}', 'danger')
         return redirect(request.referrer or url_for('index'))
 
     current_user.balance -= stake
-    bet = Bet(user_id=current_user.id, game_id=target_game_id, prop_id=prop_id,
-              bet_type=bet_type, selection=selection, odds=odds, line=line, stake=stake)
-    db.session.add(bet)
+
+    # --- PARLAY LOGIC ---
+    if len(bets_data) > 1:
+        parlay = ParlayBet(user_id=current_user.id, stake=stake)
+        db.session.add(parlay)
+        
+        for leg_data in bets_data:
+            leg = ParlayLeg(
+                parlay=parlay,
+                game_id=to_int(leg_data.get('gameId')),
+                bet_type=leg_data.get('betType'),
+                selection=leg_data.get('selection'),
+                odds=to_int(leg_data.get('price')),
+                line=to_decimal(leg_data.get('line'))
+            )
+            db.session.add(leg)
+        flash('Parlay bet placed successfully!', 'success')
+
+    # --- SINGLE BET LOGIC ---
+    else:
+        bet_data = bets_data[0]
+        bet = Bet(
+            user_id=current_user.id,
+            game_id=to_int(bet_data.get('gameId')),
+            prop_id=to_int(bet_data.get('propId')),
+            bet_type=bet_data.get('betType'),
+            selection=bet_data.get('selection'),
+            odds=to_int(bet_data.get('price')),
+            line=to_decimal(bet_data.get('line')),
+            stake=stake
+        )
+        db.session.add(bet)
+        flash('Bet placed successfully!', 'success')
+
     db.session.commit()
-    flash('Bet placed successfully!', 'success')
     return redirect(url_for('account'))
 
 
