@@ -541,7 +541,18 @@ def admin_edit_game(game_id):
     game = Game.query.get_or_404(game_id)
 
     if request.method == 'POST':
-    game = Game.query.get_or_404(game_id)
+        # --- This all correctly happens on POST ---
+        game.home_team = request.form.get('home_team')
+        game.away_team = request.form.get('away_team')
+        # ... update all other fields ...
+
+        # --- MOVE THESE LINES INSIDE THE IF BLOCK ---
+        db.session.commit()
+        flash('Game updated successfully.', 'success')
+        return redirect(url_for('admin_games'))
+
+    # This line now correctly runs only on a GET request
+    return render_template('admin_edit_game.html', game=game)
 
     # --- BEFORE (Incorrect) ---
     # game.spread_line = d('spread_line') # This passes a string literal
