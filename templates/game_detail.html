@@ -4,12 +4,6 @@
 <h3>{{ game.away_team }} @ {{ game.home_team }}</h3>
 <p><strong>Start:</strong> {{ game.start_time.strftime('%Y-%m-%d %H:%M') }} | <strong>Status:</strong> {{ game.status }}</p>
 <hr>
-{% extends 'base.html' %}
-{% block content %}
-
-<h3>{{ game.away_team }} @ {{ game.home_team }}</h3>
-<p><strong>Start:</strong> {{ game.start_time.strftime('%Y-%m-%d %H:%M') }} | <strong>Status:</strong> {{ game.status }}</p>
-<hr>
 
 {% if game.status == 'open' %}
 <div class="row mb-2">
@@ -64,7 +58,12 @@
             <input type="hidden" name="bet_type" value="SPREAD">
             <input type="hidden" name="selection" value="AWAY">
             <div class="input-group">
-                <button class="btn btn-light w-50" type="submit">AWAY {{ -game.spread_line }} ({{ game.spread_away_odds }})</button>
+                <button class="btn btn-light w-50" type="submit">
+                    AWAY 
+                    {% set away_spread = -game.spread_line %}
+                    {{ '+' if away_spread > 0 else '' }}{{ away_spread }} 
+                    ({{ game.spread_away_odds }})
+                </button>
                 <span class="input-group-text">$</span>
                 <input type="number" name="stake" class="form-control" placeholder="Stake" required step="0.01" min="0.01">
             </div>
