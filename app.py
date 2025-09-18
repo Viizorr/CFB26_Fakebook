@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import json
 
 from flask import Flask, render_template, redirect, url_for, flash, request, abort
@@ -497,8 +497,18 @@ def admin_new_game():
             return int(v) if v not in (None, '') else None
 
         def d(name):
-            v = request.form.get(name)
-            return Decimal(v) if v not in (None, '') else None
+    v = request.form.get(name)
+    # First, check if the value is empty or missing
+    if v is None or v.strip() == '':
+        return None
+
+    # Next, try to convert it to a Decimal
+    try:
+        return Decimal(v)
+    except InvalidOperation:
+        # If the conversion fails, it's not a valid number.
+        # Return None instead of crashing.
+        return None
 
         g = Game(
             home_team=request.form['home_team'].strip(),
