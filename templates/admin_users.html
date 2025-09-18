@@ -3,57 +3,66 @@
 
 <h3 class="mb-3">Admin: Users</h3>
 
-<!-- Create user -->
 <div class="card mb-4">
-  <div class="card-body">
-    <form method="post" class="row g-2 align-items-end">
-      <input type="hidden" name="action" value="create">
-      <div class="col-md-3">
-        <label class="form-label">Username</label>
-        <input class="form-control" name="username" required>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Temp Password</label>
-        <input type="password" class="form-control" name="password" required>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Starting Balance</label>
-        <input type="number" step="0.01" class="form-control" name="start_balance" value="1000.00">
-      </div>
-      <div class="col-md-2 form-check mt-4">
-        <input class="form-check-input" type="checkbox" id="isAdmin" name="is_admin" value="1">
-        <label class="form-check-label" for="isAdmin">Admin</label>
-      </div>
-      <div class="col-md-1">
-        <button class="btn btn-success w-100">Create</button>
-      </div>
-    </form>
-  </div>
+    <div class="card-body">
+        <form action="{{ url_for('admin_create_user') }}" method="POST" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Username</label>
+                <input class="form-control" name="username" required>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Temp Password</label>
+                <input class="form-control" name="password" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Starting Balance</label>
+                <input type="number" step="0.01" class="form-control" name="start_balance" value="1000.00">
+            </div>
+            <div class="col-md-2 form-check mt-4">
+                <input class="form-check-input" type="checkbox" id="isAdmin" name="is_admin" value="1">
+                <label class="form-check-label" for="isAdmin">Admin</label>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-success w-100">Create</button>
+            </div>
+        </form>
+    </div>
 </div>
 
-<!-- Existing users -->
 <table class="table table-striped align-middle">
-  <thead>
-    <tr><th>ID</th><th>Username</th><th>Admin</th><th>Balance</th><th>Adjust</th></tr>
-  </thead>
-  <tbody>
-    {% for u in users %}
-    <tr>
-      <td>{{ u.id }}</td>
-      <td>{{ u.username }}</td>
-      <td>{% if u.is_admin %}✅{% else %}—{% endif %}</td>
-      <td>${{ '%.2f'|format(u.balance) }}</td>
-      <td>
-        <form method="post" class="d-inline-flex">
-          <input type="hidden" name="action" value="adjust">
-          <input type="hidden" name="user_id" value="{{ u.id }}">
-          <input class="form-control form-control-sm me-2" style="width:120px" name="adjust_amount" placeholder="+/- amount" required>
-          <button class="btn btn-primary btn-sm">Apply</button>
-        </form>
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Admin</th>
+            <th>Balance</th>
+            <th style="width: 220px;">Adjust</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td>{% if u.is_admin %}✅{% else %}—{% endif %}</td>
+            <td>${{ '%.2f'|format(u.balance) }}</td>
+            <td>
+                <form action="{{ url_for('admin_adjust_balance', user_id=u.id) }}" method="POST" class="d-inline-flex">
+                    <div class="input-group input-group-sm">
+                        <input type="number" class="form-control" style="width: 100px" name="amount" placeholder="+/- amount" required step="0.01">
+                        <button class="btn btn-primary">Apply</button>
+                    </div>
+                </form>
+            </td>
+            <td>
+                <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
 </table>
 
 {% endblock %}

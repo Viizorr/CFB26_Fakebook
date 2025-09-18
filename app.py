@@ -385,6 +385,71 @@ def admin_users():
     users = User.query.order_by(User.created_at.desc()).all()
     return render_template('admin_users.html', users=users)
 
+@app.route('/admin/users/create', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_user():
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    balance = to_decimal(request.form.get('start_balance', '1000.00'))
+    is_admin = request.form.get('is_admin') == '1'
+
+    if not username or not password:
+        flash('Username and password are required.', 'danger')
+        return redirect(url_for('admin_users'))
+
+    if User.query.filter_by(username=username).first():
+        flash('Username already exists.', 'warning')
+        return redirect(url_for('admin_users'))
+
+    new_user = User(username=username, balance=balance, is_admin=is_admin)
+    new_user.set_password(password)
+    
+    db.session.add(new_user)
+    db.session.commit()
+    flash(f'User {username} created successfully.', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/adjust_balance', methods=['POST'])
+@login_required
+@admin_required
+def admin_adjust_balance(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_users'))
+
+    amount = to_decimal(request.form.get('amount'))
+    if amount is None:
+        flash('Invalid amount entered.', 'danger')
+        return redirect(url_for('admin_users'))
+
+    user.balance += amount
+    db.session.commit()
+    flash(f"Balance for {user.username} updated successfully.", 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user(user_id):
+    if user_id == current_user.id:
+        flash('You cannot delete your own account.', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user_to_delete = db.session.get(User, user_id)
+    if user_to_delete:
+        # This will delete the user and may affect their existing bets.
+        # For a more advanced app, you'd handle this differently.
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        flash(f'User {user_to_delete.username} has been deleted.', 'success')
+    else:
+        flash('User not found.', 'danger')
+    
+    return redirect(url_for('admin_users'))
+
 @app.route('/admin/games')
 @login_required
 @admin_required
