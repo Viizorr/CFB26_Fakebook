@@ -284,18 +284,36 @@ def game_detail(game_id):
 @app.route('/bet', methods=['POST'])
 @login_required
 def place_bet():
-     # ---- START: TEMPORARY DEBUGGING CODE ----
-    print("--- FORM DATA RECEIVED ---")
-    print(request.form)
-    print("--------------------------")
-    # ---- END: TEMPORARY DEBUGGING CODE ----
-    # This route only handles single bets now. Parlay logic needs its own route.
-    game_id = to_int(request.form.get('game_id'))
-    prop_id = to_int(request.form.get('prop_id'))
-    bet_type = request.form.get('bet_type')
-    selection = request.form.get('selection')
-    stake = to_decimal(request.form.get('stake'))
+    # Get the raw form data
+    stake_str = request.form.get('stake')
+    bets_json = request.form.get('bets')
 
+    # Initialize variables
+    game_id, prop_id, bet_type, selection = None, None, None, None
+    stake = to_decimal(stake_str)
+
+    # --- NEW: Logic to handle JavaScript (JSON) submission ---
+    if bets_json:
+        try:
+            # The JS sends a list of bets; for now, we just handle the first one
+            bet_data = json.loads(bets_json)[0]
+            
+            # Extract data from the JSON payload (note the 'camelCase' keys)
+            game_id = to_int(bet_data.get('gameId'))
+            prop_id = to_int(bet_data.get('propId'))
+            bet_type = bet_data.get('betType')
+            selection = bet_data.get('selection')
+        except (json.JSONDecodeError, IndexError):
+            flash('There was an error processing the bet data.', 'danger')
+            return redirect(request.referrer or url_for('index'))
+    # --- Fallback for non-JavaScript forms ---
+    else:
+        game_id = to_int(request.form.get('game_id'))
+        prop_id = to_int(request.form.get('prop_id'))
+        bet_type = request.form.get('bet_type')
+        selection = request.form.get('selection')
+
+    # --- Universal validation logic ---
     if not all([bet_type, selection, stake]) or stake <= 0:
         flash('Invalid bet information provided.', 'danger')
         return redirect(request.referrer or url_for('index'))
