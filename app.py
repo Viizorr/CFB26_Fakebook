@@ -284,6 +284,11 @@ def game_detail(game_id):
 @app.route('/bet', methods=['POST'])
 @login_required
 def place_bet():
+     # ---- START: TEMPORARY DEBUGGING CODE ----
+    print("--- FORM DATA RECEIVED ---")
+    print(request.form)
+    print("--------------------------")
+    # ---- END: TEMPORARY DEBUGGING CODE ----
     # This route only handles single bets now. Parlay logic needs its own route.
     game_id = to_int(request.form.get('game_id'))
     prop_id = to_int(request.form.get('prop_id'))
