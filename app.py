@@ -2,17 +2,15 @@ import os
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import json
+from functools import wraps
 
 from flask import Flask, render_template, redirect, url_for, flash, request, abort
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, text
+from sqlalchemy.exc import OperationalError, InterfaceError
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, InterfaceError
 from flask_migrate import Migrate
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -36,7 +34,6 @@ app.config.update(
 )
 
 db = SQLAlchemy(app)
-# After db is created
 migrate = Migrate(app, db)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -60,12 +57,18 @@ class User(db.Model, UserMixin):
     balance = db.Column(db.Numeric(12, 2), default=Decimal("1000.00"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    def set_password(self, password): 
+    def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password): 
+    def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+
+game_tag = db.Table(
+    "game_tag",
+    db.Column("game_id", db.Integer, db.ForeignKey("game.id"), primary_key=True),
+    db.Column("tag_id", db.Integer, db.ForeignKey("tag.id"), primary_key=True),
+)
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,7 +80,6 @@ class Game(db.Model):
     ml_home = db.Column(db.Integer, nullable=True)
     ml_away = db.Column(db.Integer, nullable=True)
 
-    # Spread is relative to HOME (e.g., -3.5 means home -3.5)
     spread_line = db.Column(db.Numeric(5, 2), nullable=True)
     spread_home_odds = db.Column(db.Integer, nullable=True)
     spread_away_odds = db.Column(db.Integer, nullable=True)
@@ -88,6 +90,9 @@ class Game(db.Model):
 
     home_score = db.Column(db.Integer, nullable=True)
     away_score = db.Column(db.Integer, nullable=True)
+    
+    tags = db.relationship("Tag", secondary=game_tag, backref="games")
+    props = db.relationship("Prop", backref="game", cascade="all, delete-orphan")
 
 
 class Bet(db.Model):
@@ -98,8 +103,8 @@ class Bet(db.Model):
 
     bet_type = db.Column(db.String(10), nullable=False)      # ML, SPREAD, TOTAL
     selection = db.Column(db.String(10), nullable=False)     # HOME/AWAY or OVER/UNDER
-    odds = db.Column(db.Integer, nullable=False)             # American odds snapshot
-    line = db.Column(db.Numeric(5, 2), nullable=True)        # spread/total line snapshot
+    odds = db.Column(db.Integer, nullable=False)
+    line = db.Column(db.Numeric(5, 2), nullable=True)
 
     stake = db.Column(db.Numeric(12, 2), nullable=False)
     status = db.Column(db.String(10), default="pending", nullable=False)  # pending, won, lost, push
@@ -108,17 +113,15 @@ class Bet(db.Model):
 
     user = db.relationship("User")
     game = db.relationship("Game")
-
-    __table_args__ = (
-        CheckConstraint("stake > 0", name="ck_bet_positive_stake"),
-    )
+    
+    __table_args__ = (CheckConstraint("stake > 0", name="ck_bet_positive_stake"),)
 
 
 class ParlayBet(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     stake = db.Column(db.Numeric(12, 2), nullable=False)
-    status = db.Column(db.String(10), default="pending", nullable=False)  # pending, won, lost, push
+    status = db.Column(db.String(10), default="pending", nullable=False)
     payout = db.Column(db.Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -131,39 +134,23 @@ class ParlayLeg(db.Model):
     parlay_id = db.Column(db.Integer, db.ForeignKey("parlay_bet.id"), nullable=False)
     game_id = db.Column(db.Integer, db.ForeignKey("game.id"), nullable=False)
 
-    bet_type = db.Column(db.String(10), nullable=False)   # ML, SPREAD, TOTAL
-    selection = db.Column(db.String(10), nullable=False)  # HOME/AWAY or OVER/UNDER
+    bet_type = db.Column(db.String(10), nullable=False)
+    selection = db.Column(db.String(10), nullable=False)
     odds = db.Column(db.Integer, nullable=False)
     line = db.Column(db.Numeric(5, 2), nullable=True)
+    result = db.Column(db.String(10), default="pending", nullable=False)
 
-    result = db.Column(db.String(10), default="pending", nullable=False)  # pending, won, lost, push
-
-# --------------- Tags (for Games) ---------------
-game_tag = db.Table(
-    "game_tag",
-    db.Column("game_id", db.Integer, db.ForeignKey("game.id"), primary_key=True),
-    db.Column("tag_id", db.Integer, db.ForeignKey("tag.id"), primary_key=True),
-)
 
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(40), unique=True, nullable=False)
 
-# Add these relationships to your existing Game model:
-#   tags  -> many-to-many
-#   props -> one-to-many (defined below)
-Game.tags = db.relationship("Tag", secondary=game_tag, backref="games")
 
-# --------------- Props (manual, per game) ---------------
 class Prop(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.Integer, db.ForeignKey("game.id"), nullable=False)
-
-    # Display name, e.g. "QB Passing Yards", "Team to Score First"
     name = db.Column(db.String(120), nullable=False)
-
-    # 'OU' (Over/Under numeric) or 'YN' (Yes/No)
-    prop_type = db.Column(db.String(8), nullable=False)
+    prop_type = db.Column(db.String(8), nullable=False) # 'OU' or 'YN'
 
     # For OU props
     line = db.Column(db.Numeric(7, 2), nullable=True)
@@ -174,39 +161,27 @@ class Prop(db.Model):
     yes_odds = db.Column(db.Integer, nullable=True)
     no_odds = db.Column(db.Integer, nullable=True)
 
-    # Lifecycle
-    status = db.Column(db.String(12), default="open", nullable=False)  # open, closed, graded
-
-    # Admin-entered result
-    result_value = db.Column(db.Numeric(7, 2), nullable=True)  # for OU
-    result_bool = db.Column(db.Boolean, nullable=True)         # for YN
-
-# Link back on Game:
-Game.props = db.relationship("Prop", backref="game", cascade="all, delete-orphan")
-
+    status = db.Column(db.String(12), default="open", nullable=False)
+    result_value = db.Column(db.Numeric(7, 2), nullable=True)
+    result_bool = db.Column(db.Boolean, nullable=True)
 
 # ---------------------------- Helpers --------------------------------
 
-from sqlalchemy.exc import OperationalError, InterfaceError
-
 @login_manager.user_loader
 def load_user(user_id):
-    uid = int(user_id)
     try:
-        return db.session.get(User, uid)
+        return db.session.get(User, int(user_id))
     except (OperationalError, InterfaceError):
         db.session.remove()
-        return db.session.get(User, uid)
+        return db.session.get(User, int(user_id))
 
 def admin_required(fn):
-    from functools import wraps
     @wraps(fn)
-    def wrapper(*a, **kw):
+    def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
             abort(403)
-        return fn(*a, **kw)
+        return fn(*args, **kwargs)
     return wrapper
-
 
 def american_profit(stake: Decimal, odds: int) -> Decimal:
     stake = Decimal(stake)
@@ -214,11 +189,6 @@ def american_profit(stake: Decimal, odds: int) -> Decimal:
         return (stake * Decimal(odds) / Decimal(100)).quantize(Decimal("0.01"))
     else:
         return (stake * Decimal(100) / Decimal(abs(odds))).quantize(Decimal("0.01"))
-
-
-@app.route("/healthz")
-def healthz():
-    return "ok", 200
 
 def get_or_create_tag(name: str) -> Tag:
     name = name.strip()
@@ -230,20 +200,18 @@ def get_or_create_tag(name: str) -> Tag:
         db.session.add(t)
     return t
 
-from decimal import Decimal, InvalidOperation
-
-# Helper to safely convert a string to a Decimal or None
 def to_decimal(value):
-    if value is None or value == '':
+    """Safely converts a form value to a Decimal, returning None if invalid."""
+    if value is None or str(value).strip() == '':
         return None
     try:
         return Decimal(value)
     except InvalidOperation:
-        return None # Or handle the error as you see fit
+        return None
 
-# Helper to safely convert a string to an Integer or None
 def to_int(value):
-    if value is None or value == '':
+    """Safely converts a form value to an integer, returning None if invalid."""
+    if value is None or str(value).strip() == '':
         return None
     try:
         return int(value)
@@ -252,32 +220,23 @@ def to_int(value):
 
 # ----------------------------- Routes --------------------------------
 
+@app.route("/healthz")
+def healthz():
+    return "ok", 200
+
 @app.route('/')
 @login_required
 def index():
-    tag = request.args.get('tag', '').strip()
-    if tag:
-        open_games = (Game.query
-                      .join(Game.tags)
-                      .filter(Tag.name == tag, Game.status == 'open')
-                      .order_by(Game.start_time.asc())
-                      .all())
-        past_games = (Game.query
-                      .join(Game.tags)
-                      .filter(Tag.name == tag, Game.status != 'open')
-                      .order_by(Game.start_time.desc())
-                      .all())
-    else:
-        open_games = Game.query.filter_by(status='open').order_by(Game.start_time.asc()).all()
-        past_games = Game.query.filter(Game.status != 'open').order_by(Game.start_time.desc()).all()
-
+    tag_name = request.args.get('tag', '').strip()
+    query = Game.query
+    if tag_name:
+        query = query.join(Game.tags).filter(Tag.name == tag_name)
+    
+    open_games = query.filter(Game.status == 'open').order_by(Game.start_time.asc()).all()
+    past_games = query.filter(Game.status != 'open').order_by(Game.start_time.desc()).all()
+    
     all_tags = Tag.query.order_by(Tag.name.asc()).all()
-    return render_template('index.html',
-                           open_games=open_games,
-                           past_games=past_games,
-                           all_tags=all_tags,
-                           current_tag=tag)
-
+    return render_template('index.html', open_games=open_games, past_games=past_games, all_tags=all_tags, current_tag=tag_name)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -290,7 +249,6 @@ def login():
             return redirect(url_for("index"))
         flash("Invalid credentials", "danger")
     return render_template("login.html")
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -311,13 +269,11 @@ def register():
         return redirect(url_for("login"))
     return render_template("register.html")
 
-
 @app.route("/logout")
 @login_required
 def logout():
     logout_user()
     return redirect(url_for("login"))
-
 
 @app.route("/game/<int:game_id>")
 @login_required
@@ -325,120 +281,64 @@ def game_detail(game_id):
     game = Game.query.get_or_404(game_id)
     return render_template("game_detail.html", game=game)
 
-
-# --------------------------- Betting ---------------------------------
-
 @app.route('/bet', methods=['POST'])
 @login_required
 def place_bet():
-    # read optional prop_id
-    prop_id = request.form.get('prop_id')
+    # This route only handles single bets now. Parlay logic needs its own route.
+    game_id = to_int(request.form.get('game_id'))
+    prop_id = to_int(request.form.get('prop_id'))
+    bet_type = request.form.get('bet_type')
+    selection = request.form.get('selection')
+    stake = to_decimal(request.form.get('stake'))
 
-    bets_json = request.form.get('bets')
-    if bets_json:
-        # keep your existing parlay code, but either:
-        #  - ignore legs that include PROP, or
-        #  - forbid props in parlays. (Recommended for now.)
-        if '"betType":"PROP"' in bets_json:
-            flash('Props are single bets only for now.', 'warning')
-            return redirect(url_for('index'))
-        # ... your existing parlay handling ...
-        # return redirect(url_for('account'))
+    if not all([bet_type, selection, stake]) or stake <= 0:
+        flash('Invalid bet information provided.', 'danger')
+        return redirect(request.referrer or url_for('index'))
 
-    # ----- SINGLE BET -----
-    game_id = request.form.get('game_id')
-    bet_type = request.form['bet_type']
-    selection = request.form['selection']
-    stake = Decimal(request.form['stake'])
+    if current_user.balance < stake:
+        flash('Insufficient balance.', 'danger')
+        return redirect(url_for('account'))
 
+    odds, line, target_game_id = None, None, None
+    
     if prop_id:
-        # prop single
-        p = Prop.query.get_or_404(int(prop_id))
-        if p.status != 'open':
-            flash('This prop is closed', 'warning'); return redirect(url_for('game_detail', game_id=p.game_id))
-
-        if p.prop_type == 'OU':
-            line = p.line
-            odds = p.over_odds if selection == 'OVER' else p.under_odds
-        else:
-            line = None
-            odds = p.yes_odds if selection == 'YES' else p.no_odds
-
-        game_id = p.game_id
-    else:
-        # your current ML/SPREAD/TOTAL logic
-        game = Game.query.get_or_404(int(game_id))
+        prop = Prop.query.get_or_404(prop_id)
+        if prop.status != 'open':
+            flash('This prop is closed for betting.', 'warning')
+            return redirect(url_for('game_detail', game_id=prop.game_id))
+        target_game_id = prop.game_id
+        if prop.prop_type == 'OU':
+            line, odds = prop.line, prop.over_odds if selection == 'OVER' else prop.under_odds
+        else: # YN
+            line, odds = None, prop.yes_odds if selection == 'YES' else prop.no_odds
+    elif game_id:
+        game = Game.query.get_or_404(game_id)
         if game.status != 'open':
-            flash('Betting closed for this game', 'warning'); return redirect(url_for('index'))
-
-        odds, line = None, None
+            flash('Betting is closed for this game.', 'warning')
+            return redirect(url_for('game_detail', game_id=game.id))
+        target_game_id = game.id
         if bet_type == 'ML':
             odds = game.ml_home if selection == 'HOME' else game.ml_away
         elif bet_type == 'SPREAD':
-            line = game.spread_line
-            odds = game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
+            line, odds = game.spread_line, game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
         elif bet_type == 'TOTAL':
-            line = game.total_points
-            odds = game.over_odds if selection == 'OVER' else game.under_odds
-        if odds is None:
-            flash('This market is not available', 'danger')
-            return redirect(url_for('game_detail', game_id=game.id))
-
-    if current_user.balance < stake:
-        flash('Insufficient balance', 'danger')
-        return redirect(url_for('account'))
-
-    current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal('0.01'))
-    bet = Bet(user_id=current_user.id,
-              game_id=int(game_id),
-              bet_type=bet_type,
-              selection=selection,
-              odds=int(odds),
-              line=line,
-              stake=stake,
-              prop_id=int(prop_id) if prop_id else None)
-    db.session.add(bet)
-    db.session.commit()
-    flash('Bet placed!', 'success')
-    return redirect(url_for('account'))
-
-    # ---- Single bet flow ----
-    game_id = int(request.form['game_id'])
-    bet_type = request.form['bet_type']
-    selection = request.form['selection']
-    stake = Decimal(request.form['stake'])
-
-    game = Game.query.get_or_404(game_id)
-    if game.status != 'open':
-        flash('Betting closed for this game', 'warning')
+            line, odds = game.total_points, game.over_odds if selection == 'OVER' else game.under_odds
+    else:
+        flash('A valid game or prop must be selected.', 'danger')
         return redirect(url_for('index'))
 
-    odds, line = None, None
-    if bet_type == 'ML':
-        odds = game.ml_home if selection == 'HOME' else game.ml_away
-    elif bet_type == 'SPREAD':
-        line = game.spread_line
-        odds = game.spread_home_odds if selection == 'HOME' else game.spread_away_odds
-    elif bet_type == 'TOTAL':
-        line = game.total_points
-        odds = game.over_odds if selection == 'OVER' else game.under_odds
-
     if odds is None:
-        flash('This market is not available', 'danger')
-        return redirect(url_for('game_detail', game_id=game.id))
+        flash('This market is not available for betting.', 'danger')
+        return redirect(request.referrer or url_for('index'))
 
-    if Decimal(current_user.balance) < stake:
-        flash('Insufficient balance', 'danger')
-        return redirect(url_for('game_detail', game_id=game.id))
-
-    current_user.balance = (Decimal(current_user.balance) - stake).quantize(Decimal('0.01'))
-    db.session.add(Bet(user_id=current_user.id, game_id=game.id, bet_type=bet_type,
-                       selection=selection, odds=odds, line=line, stake=stake))
+    current_user.balance -= stake
+    bet = Bet(user_id=current_user.id, game_id=target_game_id, prop_id=prop_id,
+              bet_type=bet_type, selection=selection, odds=odds, line=line, stake=stake)
+    db.session.add(bet)
     db.session.commit()
-    flash('Bet placed!', 'success')
+    flash('Bet placed successfully!', 'success')
     return redirect(url_for('account'))
 
-# -------------------- Account / Leaderboard --------------------------
 
 @app.route("/account")
 @login_required
@@ -447,160 +347,109 @@ def account():
     parlays = ParlayBet.query.filter_by(user_id=current_user.id).order_by(ParlayBet.created_at.desc()).all()
     return render_template("account.html", bets=bets, parlays=parlays)
 
-
 @app.route("/leaderboard")
 @login_required
 def leaderboard():
     users = User.query.order_by(User.balance.desc()).all()
     return render_template("leaderboard.html", users=users)
 
-
 # ------------------------------ Admin --------------------------------
 
-# Helper: create/find a Tag by name (expects a Tag model + Game.tags relationship)
-def get_or_create_tag(name: str):
-    nm = (name or "").strip()
-    if not nm:
-        return None
-    t = Tag.query.filter_by(name=nm).first()
-    if t:
-        return t
-    t = Tag(name=nm)
-    db.session.add(t)
-    # caller commits
-    return t
-
-
-@app.route('/admin/users', methods=['GET'])
+@app.route('/admin/users')
 @login_required
 @admin_required
 def admin_users():
     users = User.query.order_by(User.created_at.desc()).all()
     return render_template('admin_users.html', users=users)
 
-
-@app.route('/admin/games', methods=['GET'])
+@app.route('/admin/games')
 @login_required
 @admin_required
 def admin_games():
     games = Game.query.order_by(Game.start_time.desc()).all()
     return render_template('admin_games.html', games=games)
 
-
 @app.route('/admin/games/new', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_new_game():
     if request.method == 'POST':
-        def i(name):
-            v = request.form.get(name)
-            return int(v) if v not in (None, '') else None
+        home_team = request.form.get('home_team', '').strip()
+        away_team = request.form.get('away_team', '').strip()
+        start_time_str = request.form.get('start_time')
 
-        def d(name):
-    v = request.form.get(name)
-    # First, check if the value is empty or missing
-    if v is None or v.strip() == '':
-        return None
+        if not all([home_team, away_team, start_time_str]):
+            flash('Home team, away team, and start time are required.', 'danger')
+            return render_template('admin_edit_game.html', game=None)
+        
+        try:
+            start_time = datetime.fromisoformat(start_time_str)
+        except ValueError:
+            flash('Invalid start time format.', 'danger')
+            return render_template('admin_edit_game.html', game=None)
 
-    # Next, try to convert it to a Decimal
-    try:
-        return Decimal(v)
-    except InvalidOperation:
-        # If the conversion fails, it's not a valid number.
-        # Return None instead of crashing.
-        return None
-
-        g = Game(
-            home_team=request.form['home_team'].strip(),
-            away_team=request.form['away_team'].strip(),
-            start_time=datetime.fromisoformat(request.form['start_time']),
+        game = Game(
+            home_team=home_team,
+            away_team=away_team,
+            start_time=start_time,
             status='open',
-            ml_home=i('ml_home'),
-            ml_away=i('ml_away'),
-            spread_line=d('spread_line'),
-            spread_home_odds=i('spread_home_odds'),
-            spread_away_odds=i('spread_away_odds'),
-            total_points=d('total_points'),
-            over_odds=i('over_odds'),
-            under_odds=i('under_odds'),
+            ml_home=to_int(request.form.get('ml_home')),
+            ml_away=to_int(request.form.get('ml_away')),
+            spread_line=to_decimal(request.form.get('spread_line')),
+            spread_home_odds=to_int(request.form.get('spread_home_odds')),
+            spread_away_odds=to_int(request.form.get('spread_away_odds')),
+            total_points=to_decimal(request.form.get('total_points')),
+            over_odds=to_int(request.form.get('over_odds')),
+            under_odds=to_int(request.form.get('under_odds')),
         )
 
-        # optional tags on create (comma-separated)
         raw_tags = request.form.get('tags', '')
-        names = [n.strip() for n in raw_tags.split(',') if n.strip()]
-        if names:
-            tags = []
-            for nm in names:
-                t = get_or_create_tag(nm)
-                if t:
-                    tags.append(t)
-            g.tags = tags
-
-        db.session.add(g)
+        tag_names = [name.strip() for name in raw_tags.split(',') if name.strip()]
+        if tag_names:
+            game.tags = [get_or_create_tag(name) for name in tag_names]
+        
+        db.session.add(game)
         db.session.commit()
-        flash('Game created', 'success')
+        flash('Game created successfully.', 'success')
         return redirect(url_for('admin_games'))
 
     return render_template('admin_edit_game.html', game=None)
-
 
 @app.route('/admin/games/<int:game_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def admin_edit_game(game_id):
     game = Game.query.get_or_404(game_id)
-
     if request.method == 'POST':
-        # --- This all correctly happens on POST ---
-        game.home_team = request.form.get('home_team')
-        game.away_team = request.form.get('away_team')
-        # ... update all other fields ...
+        game.home_team = request.form.get('home_team', game.home_team).strip()
+        game.away_team = request.form.get('away_team', game.away_team).strip()
+        game.status = request.form.get('status', game.status)
 
-        # --- MOVE THESE LINES INSIDE THE IF BLOCK ---
+        if request.form.get('start_time'):
+            try:
+                game.start_time = datetime.fromisoformat(request.form.get('start_time'))
+            except ValueError:
+                flash('Invalid date format.', 'danger')
+                return render_template('admin_edit_game.html', game=game)
+        
+        game.ml_home = to_int(request.form.get('ml_home'))
+        game.ml_away = to_int(request.form.get('ml_away'))
+        game.spread_line = to_decimal(request.form.get('spread_line'))
+        game.spread_home_odds = to_int(request.form.get('spread_home_odds'))
+        game.spread_away_odds = to_int(request.form.get('spread_away_odds'))
+        game.total_points = to_decimal(request.form.get('total_points'))
+        game.over_odds = to_int(request.form.get('over_odds'))
+        game.under_odds = to_int(request.form.get('under_odds'))
+        
+        raw_tags = request.form.get('tags', '')
+        tag_names = [name.strip() for name in raw_tags.split(',') if name.strip()]
+        game.tags = [get_or_create_tag(name) for name in tag_names if name]
+
         db.session.commit()
         flash('Game updated successfully.', 'success')
         return redirect(url_for('admin_games'))
 
-    # This line now correctly runs only on a GET request
     return render_template('admin_edit_game.html', game=game)
-
-    # --- BEFORE (Incorrect) ---
-    # game.spread_line = d('spread_line') # This passes a string literal
-    # game.total_points = d('total_points')
-    # ... and so on for other fields
-
-    # --- AFTER (Correct) ---
-    # Fetch values from the form and safely convert them
-    game.home_team = request.form.get('home_team')
-    game.away_team = request.form.get('away_team')
-    
-    # Use the helper functions for numeric types
-    game.ml_home = to_int(request.form.get('ml_home'))
-    game.ml_away = to_int(request.form.get('ml_away'))
-    
-    game.spread_line = to_decimal(request.form.get('spread_line'))
-    game.spread_home_odds = to_int(request.form.get('spread_home_odds'))
-    game.spread_away_odds = to_int(request.form.get('spread_away_odds'))
-
-    game.total_points = to_decimal(request.form.get('total_points'))
-    game.over_odds = to_int(request.form.get('over_odds'))
-    game.under_odds = to_int(request.form.get('under_odds'))
-
-    # Also handle the scores if they are on this form
-    game.home_score = to_int(request.form.get('home_score'))
-    game.away_score = to_int(request.form.get('away_score'))
-    
-    try:
-        db.session.commit()
-        flash('Game updated successfully!', 'success')
-        return redirect(url_for('admin_games'))
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Error updating game: {e}', 'danger')
-
-    props = getattr(game, 'props', [])
-    return render_template('admin_edit_game.html', game=game, props=props)
-
 
 @app.route('/admin/games/<int:game_id>/close', methods=['POST'])
 @login_required
@@ -612,7 +461,6 @@ def admin_close_game(game_id):
     flash('Betting closed for game.', 'info')
     return redirect(url_for('admin_games'))
 
-
 @app.route('/admin/games/<int:game_id>/reopen', methods=['POST'])
 @login_required
 @admin_required
@@ -623,8 +471,6 @@ def admin_reopen_game(game_id):
     flash('Betting reopened for game.', 'info')
     return redirect(url_for('admin_games'))
 
-
-# (optional) delete game if your template has a delete button
 @app.route('/admin/games/<int:game_id>/delete', methods=['POST'])
 @login_required
 @admin_required
@@ -635,424 +481,122 @@ def admin_delete_game(game_id):
     flash('Game deleted.', 'warning')
     return redirect(url_for('admin_games'))
 
-
-# -------- Grade a game (this is what your admin_games.html posts to) --------
 @app.route("/admin/games/<int:game_id>/grade", methods=["POST"])
 @login_required
 @admin_required
 def admin_grade_game(game_id):
     game = Game.query.get_or_404(game_id)
+    
+    home_score = to_int(request.form.get("home_score"))
+    away_score = to_int(request.form.get("away_score"))
 
-    # parse scores
-    try:
-        game.home_score = int(request.form["home_score"])
-        game.away_score = int(request.form["away_score"])
-    except Exception:
-        flash("Invalid scores", "danger")
+    if home_score is None or away_score is None:
+        flash("Invalid scores provided.", "danger")
         return redirect(url_for("admin_games"))
+    
+    game.home_score = home_score
+    game.away_score = away_score
+    
+    total_score = home_score + away_score
+    margin = home_score - away_score
 
-    total_points = (game.home_score or 0) + (game.away_score or 0)
-    margin = (game.home_score or 0) - (game.away_score or 0)
-
-    # --- Grade single bets ---
-    pending = Bet.query.filter_by(game_id=game.id, status="pending").all()
-    for bet in pending:
-        result = "lost"
-        payout = Decimal("0.00")
-
+    # Grade single bets for this game
+    pending_bets = Bet.query.filter_by(game_id=game.id, status="pending").all()
+    for bet in pending_bets:
+        result, payout = "lost", Decimal("0.00")
         if bet.bet_type == "ML":
             winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
-            if winner is None:
-                result = "push"; payout = bet.stake
-            elif bet.selection == winner:
-                result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
+            if winner is None: result, payout = "push", bet.stake
+            elif bet.selection == winner: result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
         elif bet.bet_type == "SPREAD":
-            line = Decimal(bet.line or 0)
-            home_adjusted = margin - line  # + => home covers
-            if home_adjusted == 0:
-                result = "push"; payout = bet.stake
+            if margin == bet.line: result, payout = "push", bet.stake
             else:
-                home_covers = home_adjusted > 0
-                pick_home = (bet.selection == "HOME")
-                if (home_covers and pick_home) or (not home_covers and not pick_home):
-                    result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
+                home_covers = margin > bet.line
+                if (bet.selection == "HOME" and home_covers) or (bet.selection == "AWAY" and not home_covers):
+                    result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
         elif bet.bet_type == "TOTAL":
-            line = Decimal(bet.line or 0)
-            if Decimal(total_points) == line:
-                result = "push"; payout = bet.stake
+            if total_score == bet.line: result, payout = "push", bet.stake
             else:
-                went_over = Decimal(total_points) > line
-                pick_over = (bet.selection == "OVER")
-                if went_over == pick_over:
-                    result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
+                is_over = total_score > bet.line
+                if (bet.selection == "OVER" and is_over) or (bet.selection == "UNDER" and not is_over):
+                    result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
+        
         bet.status = result
-        bet.payout = payout.quantize(Decimal("0.01"))
+        bet.payout = payout
         if result in ("won", "push"):
-            bet.user.balance = (Decimal(bet.user.balance) + bet.payout).quantize(Decimal("0.01"))
-
-    # --- Grade parlay legs ---
-    legs = ParlayLeg.query.filter_by(game_id=game.id, result="pending").all()
-    for leg in legs:
-        outcome = "lost"
-        if leg.bet_type == "ML":
-            winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
-            if winner is None:
-                outcome = "push"
-            elif leg.selection == winner:
-                outcome = "won"
-
-        elif leg.bet_type == "SPREAD":
-            line = Decimal(leg.line or 0)
-            home_adjusted = margin - line
-            if home_adjusted == 0:
-                outcome = "push"
-            else:
-                home_covers = home_adjusted > 0
-                pick_home = (leg.selection == "HOME")
-                if (home_covers and pick_home) or (not home_covers and not pick_home):
-                    outcome = "won"
-
-        elif leg.bet_type == "TOTAL":
-            line = Decimal(leg.line or 0)
-            if Decimal(total_points) == line:
-                outcome = "push"
-            else:
-                went_over = Decimal(total_points) > line
-                pick_over = (leg.selection == "OVER")
-                if went_over == pick_over:
-                    outcome = "won"
-
-        leg.result = outcome
-
-    db.session.commit()
-
-    # --- Resolve completed parlays ---
-    parlays = ParlayBet.query.filter_by(status="pending").all()
-    for pb in parlays:
-        results = [leg.result for leg in pb.legs]
-        if any(r == "pending" for r in results):
-            continue
-        if "lost" in results:
-            pb.status = "lost"
-        elif all(r in ("won", "push") for r in results):
-            mult = Decimal("1")
-            for leg in pb.legs:
-                if leg.result == "push":
-                    continue
-                o = int(leg.odds)
-                mult *= Decimal(1 + (o/100 if o > 0 else 100/abs(o)))
-            payout = (Decimal(pb.stake) * mult).quantize(Decimal("0.01"))
-            pb.status = "won"; pb.payout = payout
-            pb.user.balance = (Decimal(pb.user.balance) + payout).quantize(Decimal("0.01"))
-        else:
-            pb.status = "push"
-            pb.payout = pb.stake
-            pb.user.balance = (Decimal(pb.user.balance) + pb.stake).quantize(Decimal("0.01"))
-
+            bet.user.balance += payout
+            
     game.status = "graded"
     db.session.commit()
     flash("Game graded and balances updated.", "success")
     return redirect(url_for("admin_games"))
-
-
-# ------------------------------ Admin: props ------------------------------
 
 @app.route('/admin/games/<int:game_id>/props/new', methods=['POST'])
 @login_required
 @admin_required
 def admin_prop_new(game_id):
     game = Game.query.get_or_404(game_id)
-
-    name = (request.form.get('name') or '').strip()
-    prop_type = (request.form.get('prop_type') or 'OU').strip()  # 'OU' or 'BOOL'
-    status = (request.form.get('status') or 'open').strip()
-
-    def d(name):
-        v = request.form.get(name)
-        return Decimal(v) if v not in (None, '') else None
-
-    def i(name):
-        v = request.form.get(name)
-        return int(v) if v not in (None, '') else None
+    name = request.form.get('name', '').strip()
+    prop_type = request.form.get('prop_type', 'OU').strip()
 
     if not name:
-        flash('Prop name is required', 'danger')
+        flash('Prop name is required.', 'danger')
         return redirect(url_for('admin_edit_game', game_id=game.id))
 
-    p = Prop(game_id=game.id, name=name, prop_type=prop_type, status=status)
-
+    prop = Prop(game_id=game.id, name=name, prop_type=prop_type, status='open')
     if prop_type == 'OU':
-        p.line = d('line')
-        p.over_odds = i('over_odds')
-        p.under_odds = i('under_odds')
-    else:  # BOOL
-        p.yes_odds = i('yes_odds')
-        p.no_odds = i('no_odds')
+        prop.line = to_decimal(request.form.get('line'))
+        prop.over_odds = to_int(request.form.get('over_odds'))
+        prop.under_odds = to_int(request.form.get('under_odds'))
+    else: # YN
+        prop.yes_odds = to_int(request.form.get('yes_odds'))
+        prop.no_odds = to_int(request.form.get('no_odds'))
 
-    db.session.add(p)
+    db.session.add(prop)
     db.session.commit()
-    flash('Prop created', 'success')
+    flash('Prop created.', 'success')
     return redirect(url_for('admin_edit_game', game_id=game.id))
-
 
 @app.route('/admin/props/<int:prop_id>/status', methods=['POST'])
 @login_required
 @admin_required
 def admin_prop_status(prop_id):
-    p = Prop.query.get_or_404(prop_id)
-    new_status = (request.form.get('status') or '').strip()  # 'open' or 'closed'
+    prop = Prop.query.get_or_404(prop_id)
+    new_status = request.form.get('status', '').strip()
     if new_status in ('open', 'closed'):
-        p.status = new_status
+        prop.status = new_status
         db.session.commit()
-        flash(f'Prop set to {new_status}', 'info')
+        flash(f'Prop status set to {new_status}.', 'info')
     else:
-        flash('Invalid status', 'danger')
-    return redirect(url_for('admin_edit_game', game_id=p.game_id))
-
+        flash('Invalid status provided.', 'danger')
+    return redirect(url_for('admin_edit_game', game_id=prop.game_id))
 
 @app.route('/admin/props/<int:prop_id>/grade', methods=['POST'])
 @login_required
 @admin_required
 def admin_grade_prop(prop_id):
-    p = Prop.query.get_or_404(prop_id)
-
-    if p.prop_type == 'OU':
-        rv = (request.form.get('result_value') or '').strip()
-        try:
-            p.result_value = Decimal(rv)
-            p.status = 'graded'
-            db.session.commit()
-            flash('Prop graded', 'success')
-        except Exception:
-            flash('Invalid result value', 'danger')
-    else:
-        rb = (request.form.get('result_bool') or '').lower()
-        if rb in ('true', 'false'):
-            p.result_bool = (rb == 'true')
-            p.status = 'graded'
-            db.session.commit()
-            flash('Prop graded', 'success')
+    prop = Prop.query.get_or_404(prop_id)
+    if prop.prop_type == 'OU':
+        result_value = to_decimal(request.form.get('result_value'))
+        if result_value is None:
+            flash('A valid decimal result is required.', 'danger')
         else:
-            flash('Invalid result (YES/NO)', 'danger')
-
-    return redirect(url_for('admin_edit_game', game_id=p.game_id))
-
-    # -------- Grade single bets (pending) --------
-    pending = Bet.query.filter_by(game_id=game.id, status='pending').all()
-    for bet in pending:
-        result = 'lost'
-        payout = Decimal('0.00')
-
-        if bet.bet_type == 'ML':
-            winner = 'HOME' if margin > 0 else ('AWAY' if margin < 0 else None)
-            if winner is None:
-                result = 'push'
-                payout = bet.stake
-            elif bet.selection == winner:
-                result = 'won'
-                payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        elif bet.bet_type == 'SPREAD':
-            line = Decimal(bet.line)
-            # home covers if margin - line > 0
-            adjusted = margin - line
-            if adjusted == 0:
-                result = 'push'
-                payout = bet.stake
-            else:
-                home_covers = adjusted > 0
-                picked_home = (bet.selection == 'HOME')
-                if (home_covers and picked_home) or ((not home_covers) and (not picked_home)):
-                    result = 'won'
-                    payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        elif bet.bet_type == 'TOTAL':
-            line = Decimal(bet.line)
-            if Decimal(total_points) == line:
-                result = 'push'
-                payout = bet.stake
-            else:
-                went_over = Decimal(total_points) > line
-                picked_over = (bet.selection == 'OVER')
-                if went_over == picked_over:
-                    result = 'won'
-                    payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        bet.status = result
-        bet.payout = payout.quantize(Decimal('0.01'))
-        if result in ('won', 'push'):
-            user = bet.user
-            user.balance = (Decimal(user.balance) + bet.payout).quantize(Decimal('0.01'))
-
-    # -------- Grade parlay legs for this game --------
-    legs = ParlayLeg.query.filter_by(game_id=game.id, result='pending').all()
-    for leg in legs:
-        outcome = 'lost'
-
-        if leg.bet_type == 'ML':
-            winner = 'HOME' if margin > 0 else ('AWAY' if margin < 0 else None)
-            if winner is None:
-                outcome = 'push'
-            elif leg.selection == winner:
-                outcome = 'won'
-
-        elif leg.bet_type == 'SPREAD':
-            line = Decimal(leg.line)
-            adjusted = margin - line
-            if adjusted == 0:
-                outcome = 'push'
-            else:
-                home_covers = adjusted > 0
-                picked_home = (leg.selection == 'HOME')
-                if (home_covers and picked_home) or ((not home_covers) and (not picked_home)):
-                    outcome = 'won'
-
-        elif leg.bet_type == 'TOTAL':
-            line = Decimal(leg.line)
-            if Decimal(total_points) == line:
-                outcome = 'push'
-            else:
-                went_over = Decimal(total_points) > line
-                picked_over = (leg.selection == 'OVER')
-                if went_over == picked_over:
-                    outcome = 'won'
-
-        leg.result = outcome
-
-    db.session.commit()
-
-    # -------- Resolve any completed parlays --------
-    pending_parlays = ParlayBet.query.filter_by(status='pending').all()
-    for pb in pending_parlays:
-        results = [l.result for l in pb.legs]
-        if any(r == 'pending' for r in results):
-            continue  # still waiting on other games
-
-        if 'lost' in results:
-            pb.status = 'lost'
+            prop.result_value = result_value
+            prop.status = 'graded'
+            flash('Prop graded successfully.', 'success')
+    else: # YN
+        result_bool_str = request.form.get('result_bool', '').lower()
+        if result_bool_str not in ('true', 'false'):
+            flash('A valid result (true/false) is required.', 'danger')
         else:
-            # all legs are 'won' or 'push'
-            if all(r == 'push' for r in results):
-                pb.status = 'push'
-                pb.payout = pb.stake
-                pb.user.balance = (Decimal(pb.user.balance) + Decimal(pb.stake)).quantize(Decimal('0.01'))
-            else:
-                multiplier = Decimal('1')
-                for leg in pb.legs:
-                    if leg.result != 'won':
-                        continue
-                    o = int(leg.odds)
-                    if o > 0:
-                        multiplier *= (Decimal('1') + Decimal(o) / Decimal('100'))
-                    else:
-                        multiplier *= (Decimal('1') + Decimal('100') / Decimal(abs(o)))
-                payout = (Decimal(pb.stake) * multiplier).quantize(Decimal('0.01'))
-                pb.status = 'won'
-                pb.payout = payout
-                pb.user.balance = (Decimal(pb.user.balance) + payout).quantize(Decimal('0.01'))
-
-    game.status = 'graded'
+            prop.result_bool = (result_bool_str == 'true')
+            prop.status = 'graded'
+            flash('Prop graded successfully.', 'success')
+    
     db.session.commit()
-    flash('Game graded and balances updated.', 'success')
-    return redirect(url_for('admin_games'))
-
-    # ---- Grade single bets ----
-    pending = Bet.query.filter_by(game_id=game.id, status="pending").all()
-    for bet in pending:
-        result = "lost"
-        payout = Decimal("0.00")
-
-        if bet.bet_type == "ML":
-            winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
-            if winner is None:
-                result = "push"; payout = bet.stake
-            elif bet.selection == winner:
-                result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        elif bet.bet_type == "SPREAD":
-            line = Decimal(bet.line)
-            home_adjusted = margin - line  # >0 home covers; 0 push; <0 away covers
-            if home_adjusted == 0:
-                result = "push"; payout = bet.stake
-            else:
-                home_covers = home_adjusted > 0
-                pick_home = (bet.selection == "HOME")
-                if (home_covers and pick_home) or (not home_covers and not pick_home):
-                    result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        elif bet.bet_type == "TOTAL":
-            line = Decimal(bet.line)
-            if Decimal(total_points) == line:
-                result = "push"; payout = bet.stake
-            else:
-                went_over = Decimal(total_points) > line
-                pick_over = (bet.selection == "OVER")
-                if went_over == pick_over:
-                    result = "won"; payout = bet.stake + american_profit(bet.stake, bet.odds)
-
-        bet.status = result
-        bet.payout = payout.quantize(Decimal("0.01"))
-        if result in ("won", "push"):
-            bet.user.balance = (Decimal(bet.user.balance) + bet.payout).quantize(Decimal("0.01"))
-
-    # ---- Grade parlay legs ----
-    legs = ParlayLeg.query.filter_by(game_id=game.id, result="pending").all()
-    for leg in legs:
-        outcome = "lost"
-        if leg.bet_type == "ML":
-            winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
-            if winner is None: outcome = "push"
-            elif leg.selection == winner: outcome = "won"
-        elif leg.bet_type == "SPREAD":
-            line = Decimal(leg.line)
-            home_adjusted = margin - line
-            if home_adjusted == 0: outcome = "push"
-            else:
-                home_covers = home_adjusted > 0
-                pick_home = (leg.selection == "HOME")
-                if (home_covers and pick_home) or (not home_covers and not pick_home):
-                    outcome = "won"
-        elif leg.bet_type == "TOTAL":
-            line = Decimal(leg.line)
-            if Decimal(total_points) == line: outcome = "push"
-            else:
-                went_over = Decimal(total_points) > line
-                pick_over = (leg.selection == "OVER")
-                if went_over == pick_over: outcome = "won"
-
-        leg.result = outcome
-
-    db.session.commit()
-
-    # ---- Resolve completed parlays ----
-    parlays = ParlayBet.query.filter_by(status="pending").all()
-    for pb in parlays:
-        results = [leg.result for leg in pb.legs]
-        if any(r == "pending" for r in results):
-            continue
-        if "lost" in results:
-            pb.status = "lost"
-        else:
-            # All legs are won or push
-            multiplier = 1
-            for leg in pb.legs:
-                if leg.result == "push":
-                    continue
-                o = int(leg.odds)
-                multiplier *= (1 + (o / 100 if o > 0 else 100 / abs(o)))
-            payout = Decimal(pb.stake) * Decimal(multiplier)
-            pb.status = "won"
-            pb.payout = payout.quantize(Decimal("0.01"))
-            pb.user.balance = (Decimal(pb.user.balance) + pb.payout).quantize(Decimal("0.01"))
-
-    game.status = "graded"
-    db.session.commit()
-    flash("Game graded and balances updated.", "success")
-    return redirect(url_for("admin_games"))
+    # Note: Grading bets on props would happen here or in a separate batch job.
+    return redirect(url_for('admin_edit_game', game_id=prop.game_id))
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)
