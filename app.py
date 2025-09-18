@@ -230,6 +230,25 @@ def get_or_create_tag(name: str) -> Tag:
         db.session.add(t)
     return t
 
+from decimal import Decimal, InvalidOperation
+
+# Helper to safely convert a string to a Decimal or None
+def to_decimal(value):
+    if value is None or value == '':
+        return None
+    try:
+        return Decimal(value)
+    except InvalidOperation:
+        return None # Or handle the error as you see fit
+
+# Helper to safely convert a string to an Integer or None
+def to_int(value):
+    if value is None or value == '':
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
 
 # ----------------------------- Routes --------------------------------
 
@@ -522,42 +541,41 @@ def admin_edit_game(game_id):
     game = Game.query.get_or_404(game_id)
 
     if request.method == 'POST':
-        def i(name):
-            v = request.form.get(name)
-            return int(v) if v not in (None, '') else None
+    game = Game.query.get_or_404(game_id)
 
-        def d(name):
-            v = request.form.get(name)
-            return Decimal(v) if v not in (None, '') else None
+    # --- BEFORE (Incorrect) ---
+    # game.spread_line = d('spread_line') # This passes a string literal
+    # game.total_points = d('total_points')
+    # ... and so on for other fields
 
-        game.home_team = request.form.get('home_team', game.home_team).strip()
-        game.away_team = request.form.get('away_team', game.away_team).strip()
-        if request.form.get('start_time'):
-            game.start_time = datetime.fromisoformat(request.form['start_time'])
-        game.status = request.form.get('status', game.status)
+    # --- AFTER (Correct) ---
+    # Fetch values from the form and safely convert them
+    game.home_team = request.form.get('home_team')
+    game.away_team = request.form.get('away_team')
+    
+    # Use the helper functions for numeric types
+    game.ml_home = to_int(request.form.get('ml_home'))
+    game.ml_away = to_int(request.form.get('ml_away'))
+    
+    game.spread_line = to_decimal(request.form.get('spread_line'))
+    game.spread_home_odds = to_int(request.form.get('spread_home_odds'))
+    game.spread_away_odds = to_int(request.form.get('spread_away_odds'))
 
-        game.ml_home = i('ml_home')
-        game.ml_away = i('ml_away')
-        game.spread_line = d('spread_line')
-        game.spread_home_odds = i('spread_home_odds')
-        game.spread_away_odds = i('spread_away_odds')
-        game.total_points = d('total_points')
-        game.over_odds = i('over_odds')
-        game.under_odds = i('under_odds')
+    game.total_points = to_decimal(request.form.get('total_points'))
+    game.over_odds = to_int(request.form.get('over_odds'))
+    game.under_odds = to_int(request.form.get('under_odds'))
 
-        # Tags (comma-separated)
-        raw = request.form.get('tags', '')
-        names = [n.strip() for n in raw.split(',') if n.strip()]
-        tags = []
-        for nm in names:
-            t = get_or_create_tag(nm)
-            if t:
-                tags.append(t)
-        game.tags = tags
-
+    # Also handle the scores if they are on this form
+    game.home_score = to_int(request.form.get('home_score'))
+    game.away_score = to_int(request.form.get('away_score'))
+    
+    try:
         db.session.commit()
-        flash('Game updated.', 'success')
+        flash('Game updated successfully!', 'success')
         return redirect(url_for('admin_games'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error updating game: {e}', 'danger')
 
     props = getattr(game, 'props', [])
     return render_template('admin_edit_game.html', game=game, props=props)
