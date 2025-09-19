@@ -1,13 +1,31 @@
 {% extends 'base.html' %}
 {% block content %}
+
 <h3>Account</h3>
-<p><strong>Username:</strong> {{ current_user.username }} | <strong>Balance:</strong> ${{ '%.2f'|format(current_user.balance) }}</p>
+<p>
+  <strong>Username:</strong> {{ current_user.username }} | 
+  <strong>Balance:</strong> ${{ '%.2f'|format(current_user.balance) }}
+</p>
+
 <hr>
-<h5>Your Bets</h5>
-<table class="table table-striped">
-  <thead><tr><th>When</th><th>Game</th><th>Type</th><th>Pick</th><th>Line</th><th>Odds</th><th>Stake</th><th>Status</th><th>Payout</th></tr></thead>
+
+<h5>Your Single Bets</h5>
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Game</th>
+      <th>Type</th>
+      <th>Pick</th>
+      <th>Line</th>
+      <th>Odds</th>
+      <th>Stake</th>
+      <th>Status</th>
+      <th>Payout</th>
+    </tr>
+  </thead>
   <tbody>
-  {% for b in bets %}
+    {% for b in bets %}
     <tr>
       <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>{{ b.game.away_team }} @ {{ b.game.home_team }}</td>
@@ -16,10 +34,47 @@
       <td>{% if b.line is not none %}{{ b.line }}{% else %}-{% endif %}</td>
       <td>{{ b.odds }}</td>
       <td>${{ '%.2f'|format(b.stake) }}</td>
-      <td>{{ b.status }}</td>
+      <td><span class="badge bg-secondary text-capitalize">{{ b.status }}</span></td>
       <td>${{ '%.2f'|format(b.payout) }}</td>
     </tr>
-  {% endfor %}
+    {% endfor %}
   </tbody>
 </table>
+
+<hr class="my-4">
+
+<h5>Your Parlays</h5>
+<table class="table table-striped table-hover">
+  <thead>
+    <tr>
+      <th>When</th>
+      <th>Legs</th>
+      <th>Stake</th>
+      <th>Status</th>
+      <th>Payout</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for parlay in parlays %}
+    <tr>
+      <td style="vertical-align: middle;">{{ parlay.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td>
+        <ul class="list-unstyled mb-0">
+          {% for leg in parlay.legs %}
+          <li class="mb-2">
+            <strong>{{ leg.bet_type }} {{ leg.selection }}</strong> ({{leg.odds}})
+            <br>
+            <small class="text-muted">{{ leg.game.away_team }} @ {{ leg.game.home_team }}</small>
+          </li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td style="vertical-align: middle;">${{ '%.2f'|format(parlay.stake) }}</td>
+      <td style="vertical-align: middle;"><span class="badge bg-secondary text-capitalize">{{ parlay.status }}</span></td>
+      <td style="vertical-align: middle;">${{ '%.2f'|format(parlay.payout) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
 {% endblock %}
