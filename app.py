@@ -141,6 +141,7 @@ class ParlayLeg(db.Model):
     odds = db.Column(db.Integer, nullable=False)
     line = db.Column(db.Numeric(5, 2), nullable=True)
     result = db.Column(db.String(10), default="pending", nullable=False)
+    game = db.relationship("Game")
 
 
 class Tag(db.Model):
