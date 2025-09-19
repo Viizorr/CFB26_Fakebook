@@ -92,14 +92,12 @@
 
           <div class="col-md-6">
             <label class="form-label">Type</label>
-            {# Added ID to this select for the script #}
             <select class="form-select" name="prop_type" id="prop-type-select" required>
               <option value="OU" selected>Over/Under</option>
               <option value="YN">Yes / No</option>
             </select>
           </div>
 
-          {# Wrapped OU inputs in a div with an ID #}
           <div id="ou-fields" class="row g-3 col-12">
             <div class="col-md-4">
               <label class="form-label">Line (OU only)</label>
@@ -115,7 +113,6 @@
             </div>
           </div>
           
-          {# Wrapped YN inputs in a div with an ID and corrected labels #}
           <div id="yn-fields" class="row g-3 col-12">
             <div class="col-md-6">
               <label class="form-label">Yes Odds (YN)</label>
@@ -175,6 +172,11 @@
                     </button>
                   </form>
 
+                  {# --- ADDED THIS DELETE BUTTON FORM --- #}
+                  <form class="d-inline ms-1" method="post" action="{{ url_for('admin_delete_prop', prop_id=p.id) }}" onsubmit="return confirm('Are you sure you want to delete this prop?');">
+                      <button class="btn btn-danger btn-sm">Delete</button>
+                  </form>
+
                   {% if p.status != 'graded' %}
                     {% if p.prop_type == 'OU' %}
                       <form class="d-inline ms-1" method="post" action="{{ url_for('admin_grade_prop', prop_id=p.id) }}">
@@ -207,7 +209,6 @@
   </div>
 {% endif %}
 
-{# Added this script to toggle the form fields #}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const propTypeSelect = document.getElementById('prop-type-select');
@@ -215,19 +216,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const ynFields = document.getElementById('yn-fields');
 
   function togglePropFields() {
+    if(!propTypeSelect) return; // Don't run on pages without this element
     if (propTypeSelect.value === 'OU') {
-      ouFields.style.display = 'flex'; // Use flex to keep row behavior
+      ouFields.style.display = 'flex'; 
       ynFields.style.display = 'none';
     } else { // 'YN'
       ouFields.style.display = 'none';
       ynFields.style.display = 'flex';
     }
   }
-
-  // Set initial state on page load
   togglePropFields();
-
-  // Add event listener for changes
   propTypeSelect.addEventListener('change', togglePropFields);
 });
 </script>

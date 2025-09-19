@@ -627,6 +627,21 @@ def admin_prop_new(game_id):
     flash('Prop created.', 'success')
     return redirect(url_for('admin_edit_game', game_id=game.id))
 
+@app.route('/admin/props/<int:prop_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_prop(prop_id):
+    prop_to_delete = db.session.get(Prop, prop_id)
+    if prop_to_delete:
+        game_id = prop_to_delete.game_id # Get game_id before deleting
+        db.session.delete(prop_to_delete)
+        db.session.commit()
+        flash(f'Prop ID {prop_id} has been deleted.', 'success')
+        return redirect(url_for('admin_edit_game', game_id=game_id))
+    else:
+        flash('Prop not found.', 'danger')
+        return redirect(url_for('admin_games'))
+
 @app.route('/admin/props/<int:prop_id>/status', methods=['POST'])
 @login_required
 @admin_required
