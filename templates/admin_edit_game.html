@@ -2,7 +2,6 @@
 {% block content %}
 <h3>{{ 'New' if not game else 'Edit' }} Game</h3>
 
-<!-- Game form (unchanged) -->
 <form method="post">
   <div class="row g-3">
     <div class="col-md-4">
@@ -66,7 +65,7 @@
   </div>
 
   <div class="mt-3">
-    <button class="btn btn-primary">Save</button>
+    <button class="btn btn-primary">Save Game Details</button>
     <a class="btn btn-secondary" href="{{ url_for('admin_games') }}">Cancel</a>
   </div>
 </form>
@@ -80,71 +79,63 @@
     <h4 class="mb-0">Props for {{ game.away_team }} @ {{ game.home_team }}</h4>
   </div>
 
-  <!-- Create Prop Card -->
   <div class="card mb-3">
     <div class="card-body">
       <h5 class="card-title">Add New Prop</h5>
 
-      <!-- NOTE: endpoint name must be admin_prop_new -->
       <form method="post" action="{{ url_for('admin_prop_new', game_id=game.id) }}">
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">Name (e.g., "QB Passing Yards")</label>
             <input class="form-control" name="name" placeholder="Prop name" required>
           </div>
 
-          <div class="col-md-2">
+          <div class="col-md-6">
             <label class="form-label">Type</label>
-            <select class="form-select" name="prop_type" required>
-              <option value="OU">Over/Under</option>
-              <option value="BOOL">Yes / No</option>
+            {# Added ID to this select for the script #}
+            <select class="form-select" name="prop_type" id="prop-type-select" required>
+              <option value="OU" selected>Over/Under</option>
+              <option value="YN">Yes / No</option>
             </select>
           </div>
 
-          <!-- OU inputs -->
-          <div class="col-md-2">
-            <label class="form-label">Line (OU only)</label>
-            <input class="form-control" name="line" step="0.01" placeholder="e.g. 265.5">
+          {# Wrapped OU inputs in a div with an ID #}
+          <div id="ou-fields" class="row g-3 col-12">
+            <div class="col-md-4">
+              <label class="form-label">Line (OU only)</label>
+              <input class="form-control" name="line" step="0.01" placeholder="e.g. 265.5">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Over Odds (OU)</label>
+              <input class="form-control" name="over_odds" placeholder="-110">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Under Odds (OU)</label>
+              <input class="form-control" name="under_odds" placeholder="-110">
+            </div>
           </div>
-          <div class="col-md-2">
-            <label class="form-label">Over Odds (OU)</label>
-            <input class="form-control" name="over_odds" placeholder="-110">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">Under Odds (OU)</label>
-            <input class="form-control" name="under_odds" placeholder="-110">
+          
+          {# Wrapped YN inputs in a div with an ID and corrected labels #}
+          <div id="yn-fields" class="row g-3 col-12">
+            <div class="col-md-6">
+              <label class="form-label">Yes Odds (YN)</label>
+              <input class="form-control" name="yes_odds" placeholder="+150">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">No Odds (YN)</label>
+              <input class="form-control" name="no_odds" placeholder="-170">
+            </div>
           </div>
 
-          <!-- BOOL inputs -->
-          <div class="col-md-2">
-            <label class="form-label">Yes Odds (BOOL)</label>
-            <input class="form-control" name="yes_odds" placeholder="+150">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">No Odds (BOOL)</label>
-            <input class="form-control" name="no_odds" placeholder="-170">
-          </div>
-
-          <div class="col-md-2">
-            <label class="form-label">Status</label>
-            <select class="form-select" name="status">
-              <option value="open" selected>open</option>
-              <option value="closed">closed</option>
-            </select>
-          </div>
         </div>
 
         <div class="mt-3">
           <button class="btn btn-success">Add Prop</button>
         </div>
       </form>
-      <div class="form-text mt-2">
-        Leave OU fields blank for YES/NO props, and leave YES/NO fields blank for OU props.
-      </div>
     </div>
   </div>
 
-  <!-- Existing Props Table -->
   {% set props_list = props if props is defined else (game.props if game.props is defined else []) %}
   <div class="card">
     <div class="card-body">
@@ -215,4 +206,30 @@
     </div>
   </div>
 {% endif %}
+
+{# Added this script to toggle the form fields #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const propTypeSelect = document.getElementById('prop-type-select');
+  const ouFields = document.getElementById('ou-fields');
+  const ynFields = document.getElementById('yn-fields');
+
+  function togglePropFields() {
+    if (propTypeSelect.value === 'OU') {
+      ouFields.style.display = 'flex'; // Use flex to keep row behavior
+      ynFields.style.display = 'none';
+    } else { // 'YN'
+      ouFields.style.display = 'none';
+      ynFields.style.display = 'flex';
+    }
+  }
+
+  // Set initial state on page load
+  togglePropFields();
+
+  // Add event listener for changes
+  propTypeSelect.addEventListener('change', togglePropFields);
+});
+</script>
+
 {% endblock %}

@@ -71,7 +71,7 @@
                             <div class="small fw-semibold">{{ p.under_odds }}</div>
                         </button>
                     </div>
-                {% elif p.prop_type == 'YN' %}
+                {% elif p.prop_type == 'YN' or p.prop_type == 'BOOL' %}
                     <div class="d-flex gap-2 mt-1 mb-3">
                         <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-yn-y" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="YES" data-price="{{ p.yes_odds }}" data-label="{{ p.name }} Yes">
                             <div>Yes</div>
