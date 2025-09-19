@@ -58,7 +58,6 @@
             <h5 class="mb-3">Props</h5>
             {% for p in game.props if p.status != 'closed' %}
                 <div class="fw-semibold">{{ p.name }}</div>
-		<p class="text-warning">DEBUG: Prop type is "{{ p.prop_type }}"</p>
                 {# Check the prop type before rendering buttons #}
                 {% if p.prop_type == 'OU' %}
                     <div class="d-flex gap-2 mt-1 mb-3">
