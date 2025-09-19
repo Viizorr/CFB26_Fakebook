@@ -58,19 +58,32 @@
             <h5 class="mb-3">Props</h5>
             {% for p in game.props if p.status != 'closed' %}
                 <div class="fw-semibold">{{ p.name }}</div>
-                <div class="d-flex gap-2 mt-1 mb-3">
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-o" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="OVER" data-price="{{ p.over_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Over {{ p.line }}">
-                        <div>Over {{ '%.2f'|format(p.line) }}</div>
-                        <div class="small fw-semibold">{{ p.over_odds }}</div>
-                    </button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-u" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="UNDER" data-price="{{ p.under_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Under {{ p.line }}">
-                        <div>Under {{ '%.2f'|format(p.line) }}</div>
-                        <div class="small fw-semibold">{{ p.under_odds }}</div>
-                    </button>
-                </div>
+                {# Check the prop type before rendering buttons #}
+                {% if p.prop_type == 'OU' %}
+                    <div class="d-flex gap-2 mt-1 mb-3">
+                        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-o" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="OVER" data-price="{{ p.over_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Over {{ p.line }}">
+                            <div>Over {{ '%.2f'|format(p.line) }}</div>
+                            <div class="small fw-semibold">{{ p.over_odds }}</div>
+                        </button>
+                        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-u" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="UNDER" data-price="{{ p.under_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Under {{ p.line }}">
+                            <div>Under {{ '%.2f'|format(p.line) }}</div>
+                            <div class="small fw-semibold">{{ p.under_odds }}</div>
+                        </button>
+                    </div>
+                {% elif p.prop_type == 'YN' %}
+                    <div class="d-flex gap-2 mt-1 mb-3">
+                        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-yn-y" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="YES" data-price="{{ p.yes_odds }}" data-label="{{ p.name }} Yes">
+                            <div>Yes</div>
+                            <div class="small fw-semibold">{{ p.yes_odds }}</div>
+                        </button>
+                        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-yn-n" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="NO" data-price="{{ p.no_odds }}" data-label="{{ p.name }} No">
+                            <div>No</div>
+                            <div class="small fw-semibold">{{ p.no_odds }}</div>
+                        </button>
+                    </div>
+                {% endif %}
             {% endfor %}
             {% endif %}
-
         {% else %}
             <p class="text-muted">Betting is closed for this game.</p>
         {% endif %}
