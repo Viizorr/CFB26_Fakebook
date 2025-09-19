@@ -14,19 +14,22 @@
                 <div class="col-md-4"><div class="text-center text-uppercase text-muted fw-semibold small">Total</div></div>
             </div>
             <div class="row g-3">
-                <div class="col-md-4 d-grid gap-2">
-                    {% if game.ml_home is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-h" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="HOME" data-price="{{ game.ml_home }}" data-label="{{ game.home_team }} ML">HOME ({{ game.ml_home }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-a" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="AWAY" data-price="{{ game.ml_away }}" data-label="{{ game.away_team }} ML">AWAY ({{ game.ml_away }})</button>
-                    {% endif %}
-                </div>
-                <div class="col-md-4 d-grid gap-2">
-                    {% if game.spread_line is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-h" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="HOME" data-price="{{ game.spread_home_odds }}" data-line="{{ game.spread_line }}" data-label="{{ game.home_team }} {{ game.spread_line }}">HOME {{ game.spread_line }} ({{ game.spread_home_odds }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-a" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="AWAY" data-price="{{ game.spread_away_odds }}" data-line="{{ -game.spread_line }}" data-label="{{ game.away_team }} {{ -game.spread_line if game.spread_line > 0 else game.spread_line|abs }}">AWAY {% set awayspread = -game.spread_line %}{{ '+' if awayspread > 0 else '' }}{{ awayspread }} ({{ game.spread_away_odds }})</button>
-                    {% endif %}
-                </div>
-                <div class="col-md-4 d-grid gap-2">
-                    {% if game.total_points is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-o" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="OVER" data-price="{{ game.over_odds }}" data-line="{{ game.total_points }}" data-label="Over {{ game.total_points }}">OVER {{ game.total_points }} ({{ game.over_odds }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.
+    <div class="col-md-4 d-grid gap-2">
+        {% if game.ml_home is not none %}
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-h" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="HOME" data-price="{{ game.ml_home }}" data-label="{{ game.home_team }} ML">HOME ({{ game.ml_home }})</button>
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-a" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="AWAY" data-price="{{ game.ml_away }}" data-label="{{ game.away_team }} ML">AWAY ({{ game.ml_away }})</button>
+        {% endif %}
+    </div>
+    <div class="col-md-4 d-grid gap-2">
+        {% if game.spread_line is not none %}
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-h" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="HOME" data-price="{{ game.spread_home_odds }}" data-line="{{ game.spread_line }}" data-label="{{ game.home_team }} {{ game.spread_line }}">HOME {{ game.spread_line }} ({{ game.spread_home_odds }})</button>
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-a" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="AWAY" data-price="{{ game.spread_away_odds }}" data-line="{{ -game.spread_line }}" data-label="{{ game.away_team }} {{ -game.spread_line if game.spread_line > 0 else game.spread_line|abs }}">AWAY {% set awayspread = -game.spread_line %}{{ '+' if awayspread > 0 else '' }}{{ awayspread }} ({{ game.spread_away_odds }})</button>
+        {% endif %}
+    </div>
+    <div class="col-md-4 d-grid gap-2">
+        {% if game.total_points is not none %}
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-o" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="OVER" data-price="{{ game.over_odds }}" data-line="{{ game.total_points }}" data-label="Over {{ game.total_points }}">OVER {{ game.total_points }} ({{ game.over_odds }})</button>
+        <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-u" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="UNDER" data-price="{{ game.under_odds }}" data-line="{{ game.total_points }}" data-label="Under {{ game.total_points }}">UNDER {{ game.total_points }} ({{ game.under_odds }})</button>
+        {% endif %}
+    </div>
+</div>
