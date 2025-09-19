@@ -2,7 +2,7 @@
 {% block content %}
 
 <div class="row">
-    <div class="col-md-8">
+    <div class="col-md-12">
         <h3>{{ game.away_team }} @ {{ game.home_team }}</h3>
         <p><strong>Start:</strong> {{ game.start_time.strftime('%Y-%m-%d %H:%M') }} | <strong>Status:</strong> {{ game.status }}</p>
         <hr>
@@ -17,20 +17,38 @@
             <div class="row g-3">
                 <div class="col-md-4 d-grid gap-2">
                     {% if game.ml_home is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-h" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="HOME" data-price="{{ game.ml_home }}" data-label="{{ game.home_team }} ML">HOME ({{ game.ml_home }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-a" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="AWAY" data-price="{{ game.ml_away }}" data-label="{{ game.away_team }} ML">AWAY ({{ game.ml_away }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-h" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="HOME" data-price="{{ game.ml_home }}" data-label="{{ game.home_team }} ML">
+                        <div>HOME</div>
+                        <div class="small fw-semibold">{{ game.ml_home }}</div>
+                    </button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-ml-a" data-game-id="{{ game.id }}" data-bet-type="ML" data-selection="AWAY" data-price="{{ game.ml_away }}" data-label="{{ game.away_team }} ML">
+                        <div>AWAY</div>
+                        <div class="small fw-semibold">{{ game.ml_away }}</div>
+                    </button>
                     {% endif %}
                 </div>
                 <div class="col-md-4 d-grid gap-2">
                     {% if game.spread_line is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-h" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="HOME" data-price="{{ game.spread_home_odds }}" data-line="{{ game.spread_line }}" data-label="{{ game.home_team }} {{ game.spread_line }}">HOME {{ game.spread_line }} ({{ game.spread_home_odds }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-a" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="AWAY" data-price="{{ game.spread_away_odds }}" data-line="{{ -game.spread_line }}" data-label="{{ game.away_team }} {{ -game.spread_line if game.spread_line > 0 else game.spread_line|abs }}">AWAY {% set awayspread = -game.spread_line %}{{ '+' if awayspread > 0 else '' }}{{ awayspread }} ({{ game.spread_away_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-h" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="HOME" data-price="{{ game.spread_home_odds }}" data-line="{{ game.spread_line }}" data-label="{{ game.home_team }} {{ game.spread_line }}">
+                        <div>HOME {{ game.spread_line }}</div>
+                        <div class="small fw-semibold">{{ game.spread_home_odds }}</div>
+                    </button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-s-a" data-game-id="{{ game.id }}" data-bet-type="SPREAD" data-selection="AWAY" data-price="{{ game.spread_away_odds }}" data-line="{{ -game.spread_line }}" data-label="{{ game.away_team }} {{ -game.spread_line if game.spread_line > 0 else game.spread_line|abs }}">
+                        <div>AWAY {% set awayspread = -game.spread_line %}{{ '+' if awayspread > 0 else '' }}{{ awayspread }}</div>
+                        <div class="small fw-semibold">{{ game.spread_away_odds }}</div>
+                    </button>
                     {% endif %}
                 </div>
                 <div class="col-md-4 d-grid gap-2">
                     {% if game.total_points is not none %}
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-o" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="OVER" data-price="{{ game.over_odds }}" data-line="{{ game.total_points }}" data-label="Over {{ game.total_points }}">OVER {{ game.total_points }} ({{ game.over_odds }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-u" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="UNDER" data-price="{{ game.under_odds }}" data-line="{{ game.total_points }}" data-label="Under {{ game.total_points }}">UNDER {{ game.total_points }} ({{ game.under_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-o" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="OVER" data-price="{{ game.over_odds }}" data-line="{{ game.total_points }}" data-label="Over {{ game.total_points }}">
+                        <div>OVER {{ game.total_points }}</div>
+                        <div class="small fw-semibold">{{ game.over_odds }}</div>
+                    </button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="g{{ game.id }}-t-u" data-game-id="{{ game.id }}" data-bet-type="TOTAL" data-selection="UNDER" data-price="{{ game.under_odds }}" data-line="{{ game.total_points }}" data-label="Under {{ game.total_points }}">
+                        <div>UNDER {{ game.total_points }}</div>
+                        <div class="small fw-semibold">{{ game.under_odds }}</div>
+                    </button>
                     {% endif %}
                 </div>
             </div>
@@ -41,8 +59,14 @@
             {% for p in game.props if p.status != 'closed' %}
                 <div class="fw-semibold">{{ p.name }}</div>
                 <div class="d-flex gap-2 mt-1 mb-3">
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-o" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="OVER" data-price="{{ p.over_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Over {{ p.line }}">Over {{ '%.2f'|format(p.line) }} ({{ p.over_odds }})</button>
-                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-u" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="UNDER" data-price="{{ p.under_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Under {{ p.line }}">Under {{ '%.2f'|format(p.line) }} ({{ p.under_odds }})</button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-o" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="OVER" data-price="{{ p.over_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Over {{ p.line }}">
+                        <div>Over {{ '%.2f'|format(p.line) }}</div>
+                        <div class="small fw-semibold">{{ p.over_odds }}</div>
+                    </button>
+                    <button class="btn btn-outline-primary js-odds-pick" data-bet-id="p{{ p.id }}-ou-u" data-game-id="{{ p.game_id }}" data-prop-id="{{ p.id }}" data-bet-type="PROP" data-selection="UNDER" data-price="{{ p.under_odds }}" data-line="{{ p.line }}" data-label="{{ p.name }} Under {{ p.line }}">
+                        <div>Under {{ '%.2f'|format(p.line) }}</div>
+                        <div class="small fw-semibold">{{ p.under_odds }}</div>
+                    </button>
                 </div>
             {% endfor %}
             {% endif %}
@@ -50,42 +74,6 @@
         {% else %}
             <p class="text-muted">Betting is closed for this game.</p>
         {% endif %}
-    </div>
-
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                Bet Slip
-            </div>
-            <div class="card-body">
-                <form action="{{ url_for('place_bet') }}" method="POST" id="details-slip-form">
-                    <ul class="list-group list-group-flush" id="details-slip-legs">
-                        <li class="list-group-item text-muted" id="details-slip-empty">Your bet slip is empty.</li>
-                    </ul>
-                    <div id="details-slip-footer" class="mt-3" style="display: none;">
-                        <input type="hidden" name="bets" id="details-bets-json-input">
-                        <label for="details-stake-input" class="form-label">Stake</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" name="stake" id="details-stake-input" class="form-control" required step="0.01" min="0.01">
-                        </div>
-
-                        <div class="d-flex justify-content-between mt-2 text-muted">
-                            <span>Risk</span>
-                            <span id="details-risk-amount">$0.00</span>
-                        </div>
-                        <div class="d-flex justify-content-between fw-semibold">
-                            <span>Payout</span>
-                            <span id="details-payout-amount">$0.00</span>
-                        </div>
-
-                        <div class="d-grid mt-3">
-                            <button type="submit" class="btn btn-success">Place Bet</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
