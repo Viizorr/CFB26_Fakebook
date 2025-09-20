@@ -17,6 +17,12 @@
       <input class="form-control" name="start_time" value="{{ game.start_time.strftime('%Y-%m-%d %H:%M') if game else '' }}" required>
     </div>
 
+    {# --- ADDED THIS NEW TAGS FIELD --- #}
+    <div class="col-md-9">
+        <label class="form-label">Tags (comma-separated, e.g., NFL, Primetime)</label>
+        <input class="form-control" name="tags" value="{{ (game.tags | map(attribute='name') | join(', ')) if game and game.tags }}">
+    </div>
+
     {% if game %}
     <div class="col-md-3">
       <label class="form-label">Status</label>
@@ -172,7 +178,6 @@
                     </button>
                   </form>
 
-                  {# --- ADDED THIS DELETE BUTTON FORM --- #}
                   <form class="d-inline ms-1" method="post" action="{{ url_for('admin_delete_prop', prop_id=p.id) }}" onsubmit="return confirm('Are you sure you want to delete this prop?');">
                       <button class="btn btn-danger btn-sm">Delete</button>
                   </form>
@@ -216,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const ynFields = document.getElementById('yn-fields');
 
   function togglePropFields() {
-    if(!propTypeSelect) return; // Don't run on pages without this element
+    if(!propTypeSelect) return;
     if (propTypeSelect.value === 'OU') {
       ouFields.style.display = 'flex'; 
       ynFields.style.display = 'none';
@@ -225,8 +230,11 @@ document.addEventListener('DOMContentLoaded', function() {
       ynFields.style.display = 'flex';
     }
   }
-  togglePropFields();
-  propTypeSelect.addEventListener('change', togglePropFields);
+  
+  if (propTypeSelect) {
+      togglePropFields();
+      propTypeSelect.addEventListener('change', togglePropFields);
+  }
 });
 </script>
 
