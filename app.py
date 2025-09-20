@@ -66,25 +66,27 @@ class User(db.Model, UserMixin):
         return check_password_hash(self.password_hash, password)
 
 
-# --- ADDED THIS SECTION FOR TAGS ---
 game_tag = db.Table(
     "game_tag",
     db.Column("game_id", db.Integer, db.ForeignKey("game.id"), primary_key=True),
     db.Column("tag_id", db.Integer, db.ForeignKey("tag.id"), primary_key=True),
 )
-# ------------------------------------
 
 class LeagueInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class Tag(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(40), unique=True, nullable=False)
+
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     home_team = db.Column(db.String(80), nullable=False)
     away_team = db.Column(db.String(80), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.String(20), default="open", nullable=False)  # open, closed, graded
+    status = db.Column(db.String(20), default="open", nullable=False)
 
     ml_home = db.Column(db.Integer, nullable=True)
     ml_away = db.Column(db.Integer, nullable=True)
@@ -100,9 +102,7 @@ class Game(db.Model):
     home_score = db.Column(db.Integer, nullable=True)
     away_score = db.Column(db.Integer, nullable=True)
     
-    # --- ADDED THIS RELATIONSHIP ---
     tags = db.relationship("Tag", secondary=game_tag, backref="games")
-    # -------------------------------
     props = db.relationship("Prop", backref="game", cascade="all, delete-orphan")
 
 
@@ -112,13 +112,13 @@ class Bet(db.Model):
     game_id = db.Column(db.Integer, db.ForeignKey("game.id"), nullable=False)
     prop_id = db.Column(db.Integer, db.ForeignKey("prop.id"), nullable=True)
 
-    bet_type = db.Column(db.String(10), nullable=False)      # ML, SPREAD, TOTAL
-    selection = db.Column(db.String(10), nullable=False)      # HOME/AWAY or OVER/UNDER
+    bet_type = db.Column(db.String(10), nullable=False)
+    selection = db.Column(db.String(10), nullable=False)
     odds = db.Column(db.Integer, nullable=False)
     line = db.Column(db.Numeric(5, 2), nullable=True)
 
     stake = db.Column(db.Numeric(12, 2), nullable=False)
-    status = db.Column(db.String(10), default="pending", nullable=False)  # pending, won, lost, push
+    status = db.Column(db.String(10), default="pending", nullable=False)
     payout = db.Column(db.Numeric(12, 2), default=Decimal("0.00"), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -151,13 +151,6 @@ class ParlayLeg(db.Model):
     line = db.Column(db.Numeric(5, 2), nullable=True)
     result = db.Column(db.String(10), default="pending", nullable=False)
     game = db.relationship("Game")
-
-
-# --- ADDED THIS MODEL ---
-class Tag(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(40), unique=True, nullable=False)
-# ------------------------
 
 
 class Prop(db.Model):
