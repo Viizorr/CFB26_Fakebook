@@ -25,7 +25,10 @@
 
         <!-- top row: time + actions -->
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <div class="text-muted small">{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</div>
+          <div class="text-muted small"
+               data-datetime="{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}">
+            {{ g.start_time.strftime('%Y-%m-%d %H:%M') }}
+          </div>
           <div class="d-flex align-items-center gap-2">
             {% if g.props is defined and g.props %}
               <a class="badge text-bg-info text-decoration-none" href="{{ url_for('game_detail', game_id=g.id) }}">
@@ -182,7 +185,9 @@
     {% for g in past_games %}
     <tr>
       <td><strong>{{ g.away_team }}</strong> @ <strong>{{ g.home_team }}</strong></td>
-      <td>{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td data-datetime="{{ g.start_time.strftime('%Y-%m-%d %H:%M') }}">
+        {{ g.start_time.strftime('%Y-%m-%d %H:%M') }}
+      </td>
       <td>{{ g.status }}</td>
       <td>
         {% if g.ml_home is not none and g.ml_away is not none %}

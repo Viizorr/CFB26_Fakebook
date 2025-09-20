@@ -49,15 +49,12 @@
 
           <a class="btn btn-outline-light" href="{{ url_for('leaderboard') }}">Leaderboard</a>
           <a class="btn btn-outline-light" href="{{ url_for('account') }}">Account</a>
-          
-          {# --- ADDED THIS LINK --- #}
           <a class="btn btn-outline-light" href="{{ url_for('league_info') }}">League Info</a>
 
           {% if current_user.is_authenticated and current_user.is_admin %}
           <div class="btn-group">
             <a class="btn btn-warning" href="{{ url_for('admin_games') }}">Admin: Games</a>
             <a class="btn btn-warning" href="{{ url_for('admin_users') }}">Admin: Users</a>
-            {# --- ADDED THIS LINK --- #}
             <a class="btn btn-warning" href="{{ url_for('admin_edit_league_info') }}">Admin: Info</a>
           </div>
           {% endif %}
@@ -148,6 +145,41 @@
     })();
   </script>
 
- <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script>
+    // Parse "YYYY-MM-DD HH:MM" safely as local time
+    function parseLocal(dateString) {
+      const [ymd, hm] = dateString.split(' ');
+      const [y, m, d] = ymd.split('-').map(Number);
+      const [H, M] = hm.split(':').map(Number);
+      return new Date(y, m - 1, d, H, M);
+    }
+
+    function formatGameDate(dateString) {
+      const d = parseLocal(dateString);
+
+      const weekday = d.toLocaleString('en-US', { weekday: 'short' }); // Sat
+      const month   = d.toLocaleString('en-US', { month: 'long' });    // September
+      const day     = d.getDate();
+      const hm      = d.toLocaleString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true
+      }).toLowerCase();
+
+      const suffix = (day % 10 === 1 && day !== 11) ? 'st'
+                   : (day % 10 === 2 && day !== 12) ? 'nd'
+                   : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+
+      return `${weekday} ${month} ${day}${suffix} ${hm}`
+        .replace(' am','am').replace(' pm','pm');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('[data-datetime]').forEach(el => {
+        const raw = el.getAttribute('data-datetime');
+        if (raw) el.textContent = formatGameDate(raw);
+      });
+    });
+  </script>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
