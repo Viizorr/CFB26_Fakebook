@@ -1,12 +1,26 @@
 {% extends 'base.html' %}
 {% block content %}
 
+{# --- ADDED THIS NEW FILTER SECTION --- #}
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{{ url_for('index') }}" class="btn btn-sm {{ 'btn-primary' if not current_tag else 'btn-outline-primary' }}">
+        All Games
+    </a>
+    {% for tag in all_tags %}
+        <a href="{{ url_for('index', tag=tag.name) }}" class="btn btn-sm {{ 'btn-primary' if current_tag == tag.name else 'btn-outline-primary' }}">
+            {{ tag.name }}
+        </a>
+    {% endfor %}
+</div>
+{# ------------------------------------ #}
+
+
 <h3 class="mb-3">Open Games</h3>
 
 {% if open_games %}
   {% for g in open_games %}
     {% set away_spread = (0 - g.spread_line) if g.spread_line is not none else None %}
-    <div class="card mb-3 game-card" {% if g.tags_text %}data-tags="{{ g.tags_text|e }}"{% endif %}>
+    <div class="card mb-3 game-card">
       <div class="card-body">
 
         <!-- top row: time + actions -->
@@ -22,14 +36,15 @@
           </div>
         </div>
 
-        <!-- optional tags (shown if you provide tags_text like "NFL, Primetime") -->
-        {% if g.tags_text %}
+        <!-- UPDATED THIS SECTION TO USE g.tags -->
+        {% if g.tags %}
         <div class="mb-2">
-          {% for t in g.tags_text.split(',') %}
-            <span class="badge rounded-pill text-bg-secondary me-1">{{ t.strip() }}</span>
+          {% for t in g.tags %}
+            <span class="badge rounded-pill text-bg-secondary me-1">{{ t.name }}</span>
           {% endfor %}
         </div>
         {% endif %}
+        <!-- ------------------------------------ -->
 
         <!-- header row aligned to the grid below -->
         <div class="odds-grid text-uppercase text-muted small fw-bold mb-1">
@@ -51,10 +66,11 @@
           <div class="og-market">
             <!-- AWAY ML -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-ml-a"
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
                  data-selection="AWAY"
-                 data-label="{{ g.away_team }}"
+                 data-label="{{ g.away_team }} ML"
                  data-price="{{ g.ml_away }}">
               {% if g.ml_away is not none %}
                 <div class="odds-line">{{ '+' if g.ml_away > 0 else '' }}{{ g.ml_away }}</div>
@@ -62,10 +78,11 @@
             </div>
             <!-- HOME ML -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-ml-h"
                  data-game-id="{{ g.id }}"
                  data-bet-type="ML"
                  data-selection="HOME"
-                 data-label="{{ g.home_team }}"
+                 data-label="{{ g.home_team }} ML"
                  data-price="{{ g.ml_home }}">
               {% if g.ml_home is not none %}
                 <div class="odds-line">{{ '+' if g.ml_home > 0 else '' }}{{ g.ml_home }}</div>
@@ -77,10 +94,11 @@
           <div class="og-market">
             <!-- AWAY spread -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-s-a"
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
                  data-selection="AWAY"
-                 data-label="{{ g.away_team }}"
+                 data-label="{{ g.away_team }} {{ away_spread }}"
                  data-line="{{ away_spread }}"
                  data-price="{{ g.spread_away_odds }}">
               {% if g.spread_line is not none and g.spread_away_odds is not none %}
@@ -90,10 +108,11 @@
             </div>
             <!-- HOME spread -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-s-h"
                  data-game-id="{{ g.id }}"
                  data-bet-type="SPREAD"
                  data-selection="HOME"
-                 data-label="{{ g.home_team }}"
+                 data-label="{{ g.home_team }} {{ g.spread_line }}"
                  data-line="{{ g.spread_line }}"
                  data-price="{{ g.spread_home_odds }}">
               {% if g.spread_line is not none and g.spread_home_odds is not none %}
@@ -107,10 +126,12 @@
           <div class="og-market">
             <!-- OVER -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-t-o"
                  data-game-id="{{ g.id }}"
                  data-bet-type="TOTAL"
                  data-selection="OVER"
                  data-label="Over {{ g.total_points }}"
+                 data-line="{{ g.total_points }}"
                  data-price="{{ g.over_odds }}">
               {% if g.total_points is not none and g.over_odds is not none %}
                 <div class="odds-line">o{{ g.total_points }}</div>
@@ -119,10 +140,12 @@
             </div>
             <!-- UNDER -->
             <div class="odds-pill js-odds-pick"
+                 data-bet-id="g{{ g.id }}-t-u"
                  data-game-id="{{ g.id }}"
                  data-bet-type="TOTAL"
                  data-selection="UNDER"
                  data-label="Under {{ g.total_points }}"
+                 data-line="{{ g.total_points }}"
                  data-price="{{ g.under_odds }}">
               {% if g.total_points is not none and g.under_odds is not none %}
                 <div class="odds-line">u{{ g.total_points }}</div>

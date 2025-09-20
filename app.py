@@ -66,11 +66,13 @@ class User(db.Model, UserMixin):
         return check_password_hash(self.password_hash, password)
 
 
+# --- ADDED THIS SECTION FOR TAGS ---
 game_tag = db.Table(
     "game_tag",
     db.Column("game_id", db.Integer, db.ForeignKey("game.id"), primary_key=True),
     db.Column("tag_id", db.Integer, db.ForeignKey("tag.id"), primary_key=True),
 )
+# ------------------------------------
 
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -93,7 +95,9 @@ class Game(db.Model):
     home_score = db.Column(db.Integer, nullable=True)
     away_score = db.Column(db.Integer, nullable=True)
     
+    # --- ADDED THIS RELATIONSHIP ---
     tags = db.relationship("Tag", secondary=game_tag, backref="games")
+    # -------------------------------
     props = db.relationship("Prop", backref="game", cascade="all, delete-orphan")
 
 
@@ -104,7 +108,7 @@ class Bet(db.Model):
     prop_id = db.Column(db.Integer, db.ForeignKey("prop.id"), nullable=True)
 
     bet_type = db.Column(db.String(10), nullable=False)      # ML, SPREAD, TOTAL
-    selection = db.Column(db.String(10), nullable=False)     # HOME/AWAY or OVER/UNDER
+    selection = db.Column(db.String(10), nullable=False)      # HOME/AWAY or OVER/UNDER
     odds = db.Column(db.Integer, nullable=False)
     line = db.Column(db.Numeric(5, 2), nullable=True)
 
@@ -144,9 +148,11 @@ class ParlayLeg(db.Model):
     game = db.relationship("Game")
 
 
+# --- ADDED THIS MODEL ---
 class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(40), unique=True, nullable=False)
+# ------------------------
 
 
 class Prop(db.Model):
@@ -193,6 +199,7 @@ def american_profit(stake: Decimal, odds: int) -> Decimal:
     else:
         return (stake * Decimal(100) / Decimal(abs(odds))).quantize(Decimal("0.01"))
 
+# --- ADDED THIS HELPER FUNCTION ---
 def get_or_create_tag(name: str) -> Tag:
     name = name.strip()
     if not name:
@@ -202,6 +209,7 @@ def get_or_create_tag(name: str) -> Tag:
         t = Tag(name=name)
         db.session.add(t)
     return t
+# ----------------------------------
 
 def to_decimal(value):
     """Safely converts a form value to a Decimal, returning None if invalid."""
@@ -227,6 +235,7 @@ def to_int(value):
 def healthz():
     return "ok", 200
 
+# --- UPDATED THIS ROUTE ---
 @app.route('/')
 @login_required
 def index():
@@ -240,6 +249,7 @@ def index():
     
     all_tags = Tag.query.order_by(Tag.name.asc()).all()
     return render_template('index.html', open_games=open_games, past_games=past_games, all_tags=all_tags, current_tag=tag_name)
+# ---------------------------
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -422,8 +432,6 @@ def admin_delete_user(user_id):
     
     user_to_delete = db.session.get(User, user_id)
     if user_to_delete:
-        # This will delete the user and may affect their existing bets.
-        # For a more advanced app, you'd handle this differently.
         db.session.delete(user_to_delete)
         db.session.commit()
         flash(f'User {user_to_delete.username} has been deleted.', 'success')
@@ -439,6 +447,7 @@ def admin_games():
     games = Game.query.order_by(Game.start_time.desc()).all()
     return render_template('admin_games.html', games=games)
 
+# --- UPDATED THIS ROUTE ---
 @app.route('/admin/games/new', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -484,7 +493,9 @@ def admin_new_game():
         return redirect(url_for('admin_games'))
 
     return render_template('admin_edit_game.html', game=None)
+# ---------------------------
 
+# --- UPDATED THIS ROUTE ---
 @app.route('/admin/games/<int:game_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -520,6 +531,7 @@ def admin_edit_game(game_id):
         return redirect(url_for('admin_games'))
 
     return render_template('admin_edit_game.html', game=game)
+# ---------------------------
 
 @app.route('/admin/games/<int:game_id>/close', methods=['POST'])
 @login_required
