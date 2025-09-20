@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h3 class="card-title">League Info & Updates</h3>
+        <hr>
+        {% if info %}
+            {# The |safe filter allows you to use HTML tags like <p> or <strong> in your content #}
+            {{ info.content | safe }}
+        {% else %}
+            <p class="text-muted">No information has been posted yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

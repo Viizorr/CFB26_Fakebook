@@ -74,6 +74,11 @@ game_tag = db.Table(
 )
 # ------------------------------------
 
+class LeagueInfo(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    content = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class Game(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     home_team = db.Column(db.String(80), nullable=False)
@@ -367,6 +372,32 @@ def account():
 def leaderboard():
     users = User.query.order_by(User.balance.desc()).all()
     return render_template("leaderboard.html", users=users)
+
+@app.route('/league-info')
+def league_info():
+    # Get the most recently updated piece of content
+    info = LeagueInfo.query.order_by(LeagueInfo.updated_at.desc()).first()
+    return render_template('league_info.html', info=info)
+
+@app.route('/admin/league-info/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_league_info():
+    info = LeagueInfo.query.first() # Get the first entry to edit it
+    if request.method == 'POST':
+        content = request.form.get('content')
+        if info:
+            # If info already exists, update it
+            info.content = content
+        else:
+            # If this is the first time, create a new entry
+            info = LeagueInfo(content=content)
+            db.session.add(info)
+        db.session.commit()
+        flash('League Info updated successfully!', 'success')
+        return redirect(url_for('league_info'))
+
+    return render_template('admin_edit_info.html', info=info)
 
 # ------------------------------ Admin --------------------------------
 
