@@ -587,51 +587,102 @@ def admin_delete_game(game_id):
     flash('Game deleted.', 'warning')
     return redirect(url_for('admin_games'))
 
+from decimal import Decimal
+
 @app.route("/admin/games/<int:game_id>/grade", methods=["POST"])
 @login_required
 @admin_required
 def admin_grade_game(game_id):
     game = Game.query.get_or_404(game_id)
-    
+
     home_score = to_int(request.form.get("home_score"))
     away_score = to_int(request.form.get("away_score"))
-
     if home_score is None or away_score is None:
         flash("Invalid scores provided.", "danger")
         return redirect(url_for("admin_games"))
-    
+
+    # persist scores
     game.home_score = home_score
     game.away_score = away_score
-    
-    total_score = home_score + away_score
-    margin = home_score - away_score
 
-    # Grade single bets for this game
+    total_score = home_score + away_score
+    margin = home_score - away_score  # home - away
+
     pending_bets = Bet.query.filter_by(game_id=game.id, status="pending").all()
+
     for bet in pending_bets:
-        result, payout = "lost", Decimal("0.00")
-        if bet.bet_type == "ML":
+        # defaults
+        result = "lost"
+        payout = Decimal("0.00")
+
+        bt = (bet.bet_type or "").upper()
+        pick = (bet.selection or "").upper()
+
+        # ---- MONEYLINE ----
+        if bt == "ML":
             winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
-            if winner is None: result, payout = "push", bet.stake
-            elif bet.selection == winner: result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
-        elif bet.bet_type == "SPREAD":
-            if margin == bet.line: result, payout = "push", bet.stake
+            if winner is None:
+                result, payout = "push", bet.stake
+            elif pick == winner:
+                result = "won"
+                payout = bet.stake + american_profit(bet.stake, bet.odds)
+
+        # ---- SPREAD / ATS ----
+        elif bt == "SPREAD":
+            line = bet.line
+            if line is None:
+                # No line available => void (or change to 'push' if you prefer)
+                result, payout = "void", bet.stake
             else:
-                home_covers = margin > bet.line
-                if (bet.selection == "HOME" and home_covers) or (bet.selection == "AWAY" and not home_covers):
-                    result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
-        elif bet.bet_type == "TOTAL":
-            if total_score == bet.line: result, payout = "push", bet.stake
+                # Convention used below: line is for HOME side
+                # Example: HOME -3.5 means home must win by > 3.5
+                # If user picked AWAY, we flip the handicap perspective.
+                if pick == "HOME":
+                    adj = margin - line
+                elif pick == "AWAY":
+                    adj = (-margin) - (-line)  # equivalent to away_margin - away_line
+                else:
+                    # unknown pick -> void for safety
+                    result, payout = "void", bet.stake
+                    adj = None
+
+                if adj is not None:
+                    if adj == 0:
+                        result, payout = "push", bet.stake
+                    elif adj > 0:
+                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
+                    else:
+                        result, payout = "lost", Decimal("0.00")
+
+        # ---- TOTALS (OVER/UNDER) ----
+        elif bt in ("TOTAL", "TOTALS", "OU", "O/U"):
+            line = bet.line
+            if line is None:
+                result, payout = "void", bet.stake
             else:
-                is_over = total_score > bet.line
-                if (bet.selection == "OVER" and is_over) or (bet.selection == "UNDER" and not is_over):
-                    result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
-        
+                if total_score == line:
+                    result, payout = "push", bet.stake
+                elif pick == "OVER":
+                    if total_score > line:
+                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
+                elif pick == "UNDER":
+                    if total_score < line:
+                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
+                else:
+                    # unknown pick -> void
+                    result, payout = "void", bet.stake
+
+        # ---- Unknown bet type: be safe ----
+        else:
+            result, payout = "void", bet.stake
+
         bet.status = result
         bet.payout = payout
-        if result in ("won", "push"):
+
+        # Credit balances on win/push/void (void refunds stake)
+        if result in ("won", "push", "void"):
             bet.user.balance += payout
-            
+
     game.status = "graded"
     db.session.commit()
     flash("Game graded and balances updated.", "success")
