@@ -7,6 +7,7 @@
   <title>CFB26 Fakebook</title>
 
   <script>
+    // Theme bootstrap (runs before paint)
     (() => {
       const stored = localStorage.getItem('theme') || 'auto';
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -127,6 +128,7 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
+    // Theme switcher (after paint)
     (() => {
       const setTheme = (value) => {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -146,6 +148,7 @@
   </script>
 
   <script>
+    // ---------- Date formatting helpers ----------
     // Parse "YYYY-MM-DD HH:MM" safely as local time
     function parseLocal(dateString) {
       const [ymd, hm] = dateString.split(' ');
@@ -156,20 +159,14 @@
 
     function formatGameDate(dateString) {
       const d = parseLocal(dateString);
-
-      const weekday = d.toLocaleString('en-US', { weekday: 'short' }); // Sat
-      const month   = d.toLocaleString('en-US', { month: 'long' });    // September
+      const weekday = d.toLocaleString('en-US', { weekday: 'short' });
+      const month   = d.toLocaleString('en-US', { month: 'long' });
       const day     = d.getDate();
-      const hm      = d.toLocaleString('en-US', {
-        hour: 'numeric', minute: '2-digit', hour12: true
-      }).toLowerCase();
-
+      const hm      = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
       const suffix = (day % 10 === 1 && day !== 11) ? 'st'
                    : (day % 10 === 2 && day !== 12) ? 'nd'
                    : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
-
-      return `${weekday} ${month} ${day}${suffix} ${hm}`
-        .replace(' am','am').replace(' pm','pm');
+      return `${weekday} ${month} ${day}${suffix} ${hm}`.replace(' am','am').replace(' pm','pm');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -180,158 +177,123 @@
     });
   </script>
 
-<script>
-  // THEME (unchanged)
-  (() => {
-    const setTheme = (value) => {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const theme = value === 'auto' ? (prefersDark ? 'dark' : 'light') : value;
-      document.documentElement.setAttribute('data-bs-theme', theme);
-      localStorage.setItem('theme', value);
-    };
-    document.querySelectorAll('[data-theme-value]').forEach(btn => {
-      btn.addEventListener('click', () => setTheme(btn.dataset.themeValue));
-    });
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if ((localStorage.getItem('theme') || 'auto') === 'auto') setTheme('auto');
-    });
-  })();
-</script>
+  <script>
+    // ---------- Bet Slip wiring ----------
+    document.addEventListener('DOMContentLoaded', () => {
+      const slipEl     = document.getElementById('betSlip');
+      const listEl     = document.getElementById('parlayList');
+      const stakeEl    = document.getElementById('stake');
+      const toWinEl    = document.getElementById('to-win-amount');
+      const maxBtn     = document.getElementById('maxBtn');
+      const addBtns    = document.querySelectorAll('[data-add]');
+      const formEl     = document.getElementById('bet-slip-form');
+      const jsonInput  = document.getElementById('bets-json-input');
+      const balance    = Number(document.body.dataset.balance || '0');
 
-<script>
-  // ---------- Date formatting helpers ----------
-  function parseLocal(dateString) {
-    const [ymd, hm] = dateString.split(' ');
-    const [y, m, d] = ymd.split('-').map(Number);
-    const [H, M] = hm.split(':').map(Number);
-    return new Date(y, m - 1, d, H, M);
-  }
-
-  function formatGameDate(dateString) {
-    const d = parseLocal(dateString);
-    const weekday = d.toLocaleString('en-US', { weekday: 'short' }); // Sat
-    const month   = d.toLocaleString('en-US', { month: 'long' });    // September
-    const day     = d.getDate();
-    const hm      = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-    const suffix = (day % 10 === 1 && day !== 11) ? 'st'
-                 : (day % 10 === 2 && day !== 12) ? 'nd'
-                 : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
-    return `${weekday} ${month} ${day}${suffix} ${hm}`.replace(' am','am').replace(' pm','pm');
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('[data-datetime]').forEach(el => {
-      const raw = el.getAttribute('data-datetime');
-      if (raw) el.textContent = formatGameDate(raw);
-    });
-  });
-</script>
-
-<script>
-  // ---------- Bet Slip wiring ----------
-  document.addEventListener('DOMContentLoaded', () => {
-    const slipEl     = document.getElementById('betSlip');
-    const listEl     = document.getElementById('parlayList');
-    const stakeEl    = document.getElementById('stake');
-    const toWinEl    = document.getElementById('to-win-amount');
-    const maxBtn     = document.getElementById('maxBtn');
-    const addBtns    = document.querySelectorAll('[data-add]');
-    const formEl     = document.getElementById('bet-slip-form');
-    const jsonInput  = document.getElementById('bets-json-input');
-    const balance    = Number(document.body.dataset.balance || '0');
-    if (!slipEl || !listEl || !stakeEl || !toWinEl || !formEl || !jsonInput) {
-      console.warn('Bet slip elements not found. Global bet slip may be missing from base.html.');
-      return;
-    }
-
-    const slip = new bootstrap.Offcanvas(slipEl);
-    {% raw %}/** @type {{gameId:number, market:'ML'|'SPREAD'|'TOTAL', team:string, price:number, line:number|null, label:string}[]} */{% endraw %}
-    let bets = [];
-
-    const moneyFmt = (n) => (Math.round(n * 100) / 100).toFixed(2);
-    const americanToDecimal = (o) => (o >= 0 ? 1 + (o / 100) : 1 + (100 / Math.abs(o)));
-
-    function recalcToWin() {
-      const stake = Number(stakeEl.value || '0');
-      if (!stake || bets.length === 0) { toWinEl.textContent = '$0.00'; return; }
-      // Parlay payout: product of decimal odds
-      const dec = bets.reduce((p, b) => p * americanToDecimal(b.price), 1);
-      const toWin = stake * (dec - 1);
-      toWinEl.textContent = `$${moneyFmt(toWin)}`;
-    }
-
-    function render() {
-      if (bets.length === 0) {
-        listEl.innerHTML = `<li class="list-group-item text-muted">No selections yet.</li>`;
-        recalcToWin();
+      if (!slipEl || !listEl || !stakeEl || !toWinEl || !formEl || !jsonInput) {
+        console.warn('Bet slip elements not found. Global bet slip may be missing from base.html.');
         return;
       }
-      listEl.innerHTML = bets.map((b, i) => `
-        <li class="list-group-item d-flex justify-content-between align-items-start">
-          <div class="me-2">
-            <div class="fw-semibold">${b.team}</div>
-            <div class="small text-muted">
-              ${b.market}${b.line !== null ? ` ${b.line > 0 ? '+'+b.line : b.line}` : ''} @ ${b.price > 0 ? '+'+b.price : b.price}
-            </div>
-            <div class="small">${b.label || ''}</div>
-          </div>
-          <button class="btn btn-sm btn-outline-danger" data-remove="${i}">Remove</button>
-        </li>
-      `).join('');
 
-      listEl.querySelectorAll('[data-remove]').forEach(btn => {
+      const slip = new bootstrap.Offcanvas(slipEl);
+
+      /**
+       * @typedef {Object} Bet
+       * @property {number} gameId
+       * @property {'ML'|'SPREAD'|'TOTAL'} market
+       * @property {string} team
+       * @property {number} price
+       * @property {?number} line
+       * @property {string} label
+       */
+
+      /** @type {Bet[]} */
+      let bets = [];
+
+      const moneyFmt = (n) => (Math.round(n * 100) / 100).toFixed(2);
+      const americanToDecimal = (o) => (o >= 0 ? 1 + (o / 100) : 1 + (100 / Math.abs(o)));
+
+      function recalcToWin() {
+        const stake = Number(stakeEl.value || '0');
+        if (!stake || bets.length === 0) { toWinEl.textContent = '$0.00'; return; }
+        // Parlay payout: product of decimal odds
+        const dec = bets.reduce((p, b) => p * americanToDecimal(b.price), 1);
+        const toWin = stake * (dec - 1);
+        toWinEl.textContent = `$${moneyFmt(toWin)}`;
+      }
+
+      function render() {
+        if (bets.length === 0) {
+          listEl.innerHTML = `<li class="list-group-item text-muted">No selections yet.</li>`;
+          recalcToWin();
+          return;
+        }
+        listEl.innerHTML = bets.map((b, i) => `
+          <li class="list-group-item d-flex justify-content-between align-items-start">
+            <div class="me-2">
+              <div class="fw-semibold">${b.team}</div>
+              <div class="small text-muted">
+                ${b.market}${b.line !== null ? ` ${b.line > 0 ? '+'+b.line : b.line}` : ''} @ ${b.price > 0 ? '+'+b.price : b.price}
+              </div>
+              <div class="small">${b.label || ''}</div>
+            </div>
+            <button class="btn btn-sm btn-outline-danger" data-remove="${i}">Remove</button>
+          </li>
+        `).join('');
+
+        listEl.querySelectorAll('[data-remove]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = Number(btn.getAttribute('data-remove'));
+            bets.splice(idx, 1);
+            render();
+          });
+        });
+
+        recalcToWin();
+      }
+
+      // Public API: call this from your odds buttons
+      window.addBet = function addBet({ gameId, market, team, price, line = null, label = '' }) {
+        bets.push({ gameId, market, team, price: Number(price), line: line === null ? null : Number(line), label });
+        render();
+        slip.show();
+      };
+
+      // Quick +$ buttons
+      addBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-          const idx = Number(btn.getAttribute('data-remove'));
-          bets.splice(idx, 1);
-          render();
+          const add = Number(btn.dataset.add || '0');
+          const cur = Number(stakeEl.value || '0');
+          stakeEl.value = moneyFmt(cur + add);
+          recalcToWin();
         });
       });
 
-      recalcToWin();
-    }
-
-    // Public API: call this from your odds buttons
-    window.addBet = function addBet({ gameId, market, team, price, line = null, label = '' }) {
-      bets.push({ gameId, market, team, price: Number(price), line: line === null ? null : Number(line), label });
-      render();
-      slip.show();
-    };
-
-    // Quick +$ buttons
-    addBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const add = Number(btn.dataset.add || '0');
-        const cur = Number(stakeEl.value || '0');
-        stakeEl.value = moneyFmt(cur + add);
-        recalcToWin();
-      });
-    });
-
-    // MAX sets to balance (never negative)
-    if (maxBtn) {
-      maxBtn.addEventListener('click', () => {
-        stakeEl.value = moneyFmt(Math.max(0, balance));
-        recalcToWin();
-      });
-    }
-
-    // Recalc on manual stake entry
-    stakeEl.addEventListener('input', recalcToWin);
-
-    // On submit, serialize bets
-    formEl.addEventListener('submit', (e) => {
-      if (bets.length === 0) {
-        e.preventDefault();
-        alert('Add at least one selection to your slip.');
-        return;
+      // MAX sets to balance (never negative)
+      if (maxBtn) {
+        maxBtn.addEventListener('click', () => {
+          stakeEl.value = moneyFmt(Math.max(0, balance));
+          recalcToWin();
+        });
       }
-      jsonInput.value = JSON.stringify(bets);
-    });
 
-    // First paint
-    render();
-  });
-</script>
+      // Recalc on manual stake entry
+      stakeEl.addEventListener('input', recalcToWin);
+
+      // On submit, serialize bets
+      formEl.addEventListener('submit', (e) => {
+        if (bets.length === 0) {
+          e.preventDefault();
+          alert('Add at least one selection to your slip.');
+          return;
+        }
+        jsonInput.value = JSON.stringify(bets);
+      });
+
+      // First paint
+      render();
+    });
+  </script>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
