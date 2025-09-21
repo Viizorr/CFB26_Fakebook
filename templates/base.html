@@ -245,7 +245,7 @@
     }
 
     const slip = new bootstrap.Offcanvas(slipEl);
-    /** @type {{gameId:number, market:'ML'|'SPREAD'|'TOTAL', team:string, price:number, line:number|null, label:string}[]} */
+    {% raw %}/** @type {{gameId:number, market:'ML'|'SPREAD'|'TOTAL', team:string, price:number, line:number|null, label:string}[]} */{% endraw %}
     let bets = [];
 
     const moneyFmt = (n) => (Math.round(n * 100) / 100).toFixed(2);
