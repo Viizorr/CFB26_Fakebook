@@ -14,6 +14,93 @@ from flask_migrate import Migrate
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
+from decimal import Decimal, InvalidOperation
+
+# ---- odds/math helpers ----
+def american_to_decimal(odds) -> Decimal:
+    try:
+        o = Decimal(str(odds))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("1")
+    if o == 0:
+        return Decimal("1")
+    return (o/Decimal("100") + 1) if o > 0 else (Decimal("100")/(-o) + 1)
+
+def _dec(x):
+    if x is None:
+        return None
+    try:
+        return Decimal(str(x))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+def _grade_ou(actual: Decimal, line: Decimal, pick: str):
+    """Return 'won'|'lost'|'push' (or None if insufficient info)."""
+    if actual is None or line is None:
+        return None
+    if actual == line:
+        return "push"
+    p = (pick or "").upper()
+    if p == "OVER":
+        return "won" if actual > line else "lost"
+    if p == "UNDER":
+        return "won" if actual < line else "lost"
+    return None
+
+def _product(nums):
+    out = Decimal("1")
+    for n in nums:
+        out *= n
+    return out
+
+# ---- settle all parlays that had at least one leg in this game ----
+def settle_parlays_for_game(game_id):
+    # Find candidate parlays
+    affected_parlay_ids = (
+        db.session.query(Bet.parlay_id)
+        .filter(Bet.game_id == game_id, Bet.parlay_id.isnot(None))
+        .distinct()
+        .all()
+    )
+    affected_parlay_ids = [pid for (pid,) in affected_parlay_ids]
+    if not affected_parlay_ids:
+        return
+
+    parlays = Parlay.query.filter(
+        Parlay.id.in_(affected_parlay_ids),
+        Parlay.status == "pending"
+    ).all()
+
+    for parlay in parlays:
+        legs = Bet.query.filter_by(parlay_id=parlay.id).all()
+        if not legs:
+            continue
+
+        terminal = {"won", "lost", "push", "void"}
+        if any(l.status not in terminal for l in legs):
+            continue  # still waiting on a leg
+
+        if any(l.status == "lost" for l in legs):
+            parlay.status = "lost"
+            parlay.payout = Decimal("0.00")
+        else:
+            # Build combined decimal odds from WON legs; PUSH/VOID = 1.0
+            multipliers = [american_to_decimal(l.odds) if l.status == "won" else Decimal("1") for l in legs]
+            combined = _product(multipliers)
+
+            if any(l.status == "won" for l in legs):
+                parlay.status = "won"
+                parlay.payout = (parlay.stake * combined).quantize(Decimal("0.01"))
+            else:
+                # all legs push/void => refund
+                parlay.status = "push"
+                parlay.payout = parlay.stake
+
+        if parlay.status in ("won", "push"):
+            parlay.user.balance += parlay.payout
+
+    db.session.commit()
+
 # ------------------------- DB URL & App Setup -------------------------
 
 db_path = os.getenv("DATABASE_URL")
@@ -595,93 +682,134 @@ from decimal import Decimal
 def admin_grade_game(game_id):
     game = Game.query.get_or_404(game_id)
 
+    # --- tiny local helpers (safe numeric + OU grading) ---
+    from decimal import Decimal, InvalidOperation
+    def _dec(x):
+        if x is None:
+            return None
+        try:
+            return Decimal(str(x))
+        except (InvalidOperation, TypeError, ValueError):
+            return None
+
+    def _grade_ou(actual: Decimal, line: Decimal, pick: str):
+        """Return 'won'|'lost'|'push' or None if insufficient info."""
+        if actual is None or line is None:
+            return None
+        if actual == line:
+            return "push"
+        p = (pick or "").upper()
+        if p == "OVER":
+            return "won" if actual > line else "lost"
+        if p == "UNDER":
+            return "won" if actual < line else "lost"
+        return None
+
+    # --- parse & persist game score ---
     home_score = to_int(request.form.get("home_score"))
     away_score = to_int(request.form.get("away_score"))
     if home_score is None or away_score is None:
         flash("Invalid scores provided.", "danger")
         return redirect(url_for("admin_games"))
 
-    # persist scores
     game.home_score = home_score
     game.away_score = away_score
 
     total_score = home_score + away_score
     margin = home_score - away_score  # home - away
 
+    # --- grade all pending single legs for this game ---
     pending_bets = Bet.query.filter_by(game_id=game.id, status="pending").all()
 
     for bet in pending_bets:
-        # defaults
         result = "lost"
         payout = Decimal("0.00")
 
-        bt = (bet.bet_type or "").upper()
+        bt   = (bet.bet_type or "").upper()
         pick = (bet.selection or "").upper()
+        line = _dec(getattr(bet, "line", None))
+        stake = _dec(bet.stake) or Decimal("0.00")
 
-        # ---- MONEYLINE ----
+        # MONEYLINE
         if bt == "ML":
             winner = "HOME" if margin > 0 else ("AWAY" if margin < 0 else None)
             if winner is None:
-                result, payout = "push", bet.stake
+                result, payout = "push", stake
             elif pick == winner:
                 result = "won"
-                payout = bet.stake + american_profit(bet.stake, bet.odds)
+                payout = stake + american_profit(stake, bet.odds)
 
-        # ---- SPREAD / ATS ----
+        # SPREAD (assumes line references HOME side, e.g., HOME -3.5)
         elif bt == "SPREAD":
-            line = bet.line
             if line is None:
-                # No line available => void (or change to 'push' if you prefer)
-                result, payout = "void", bet.stake
+                result, payout = "void", stake
             else:
-                # Convention used below: line is for HOME side
-                # Example: HOME -3.5 means home must win by > 3.5
-                # If user picked AWAY, we flip the handicap perspective.
                 if pick == "HOME":
-                    adj = margin - line
+                    adj = Decimal(margin) - line
                 elif pick == "AWAY":
-                    adj = (-margin) - (-line)  # equivalent to away_margin - away_line
+                    # equivalent to: away_margin - away_line
+                    adj = Decimal(-margin) - Decimal(-line)
                 else:
-                    # unknown pick -> void for safety
-                    result, payout = "void", bet.stake
                     adj = None
+                    result, payout = "void", stake
 
                 if adj is not None:
                     if adj == 0:
-                        result, payout = "push", bet.stake
+                        result, payout = "push", stake
                     elif adj > 0:
-                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
+                        result = "won"
+                        payout = stake + american_profit(stake, bet.odds)
                     else:
                         result, payout = "lost", Decimal("0.00")
 
-        # ---- TOTALS (OVER/UNDER) ----
+        # GAME TOTAL
         elif bt in ("TOTAL", "TOTALS", "OU", "O/U"):
-            line = bet.line
             if line is None:
-                result, payout = "void", bet.stake
+                result, payout = "void", stake
             else:
-                if total_score == line:
-                    result, payout = "push", bet.stake
-                elif pick == "OVER":
-                    if total_score > line:
-                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
-                elif pick == "UNDER":
-                    if total_score < line:
-                        result, payout = "won", bet.stake + american_profit(bet.stake, bet.odds)
-                else:
-                    # unknown pick -> void
-                    result, payout = "void", bet.stake
+                ou = _grade_ou(_dec(total_score), line, pick)
+                if ou is not None:
+                    result = ou
+                    if result == "won":
+                        payout = stake + american_profit(stake, bet.odds)
+                    elif result == "push":
+                        payout = stake
 
-        # ---- Unknown bet type: be safe ----
+        # PROP (OVER/UNDER against a numeric actual you submit as prop_value_<bet.id>)
+        elif bt == "PROP":
+            actual = _dec(request.form.get(f"prop_value_{bet.id}"))
+            if actual is None or line is None:
+                # can't grade yet; leave this bet pending so you can resubmit with actual
+                continue
+            ou = _grade_ou(actual, line, pick)
+            if ou is not None:
+                result = ou
+                if result == "won":
+                    payout = stake + american_profit(stake, bet.odds)
+                elif result == "push":
+                    payout = stake
+
+        # Unknown bet type -> safest is void (refund)
         else:
-            result, payout = "void", bet.stake
+            result, payout = "void", stake
 
+        # persist leg result
         bet.status = result
         bet.payout = payout
 
-        # Credit balances on win/push/void (void refunds stake)
-        if result in ("won", "push", "void"):
+        # Credit only non-parlay bets here; parlay legs get paid at parlay level
+        if bet.parlay_id is None and result in ("won", "push", "void"):
             bet.user.balance += payout
+
+    # Save leg results so the parlay settle can see them
+    db.session.flush()
+
+    # Settle parlays that included this game (requires helper defined above your routes)
+    try:
+        settle_parlays_for_game(game.id)
+    except NameError:
+        # If you haven't pasted the helper yet, skip gracefully.
+        pass
 
     game.status = "graded"
     db.session.commit()
